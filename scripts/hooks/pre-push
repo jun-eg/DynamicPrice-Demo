@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# docs 自動チェック: push 時にコード差分を解析し、docs 更新が必要かチェックする
+# - DOCS_OK → push 続行
+# - DOCS_REQUIRED → push ブロック
+# - それ以外（判定不能）→ push ブロック（fail-closed）
+#
+# 環境変数:
+#   REQUIRE_CLAUDE=0         → claude CLI 未検出時にスキップ（既定: 1 = ブロック）
+#   DOCS_CHECK_FAIL_OPEN=1   → claude 実行失敗・空応答・タイムアウト時にスキップ（既定: 0 = ブロック）
+#   DOCS_CHECK_BASE=<branch> → 既存ブランチ push 時の差分基点を明示指定する（例: develop）。
+#                              force-push で旧 HEAD との差分が過大になるケースで使用。
+#                              新規ブランチ push では `git rev-list --not --remotes` による
+#                              派生元検出が優先され、この変数は使われない。
+#   DOCS_CHECK_TIMEOUT=<秒>  → claude 実行のタイムアウト（既定: 120）
+
+if ! command -v claude &>/dev/null; then
+  if [ "${REQUIRE_CLAUDE:-1}" = "0" ]; then
+    echo "[pre-push] claude CLI 未検出。REQUIRE_CLAUDE=0 のためスキップ。"
+    exit 0
+  fi
+  echo "[pre-push] claude CLI 未検出。docs チェック不能のため push をブロック（REQUIRE_CLAUDE=0 でスキップ可）。" >&2
+  exit 1
+fi
+
+# pre-push hook 仕様の引数（現状未使用、将来 remote 別分岐のため予約）
+# REMOTE="$1"
+# URL="$2"
+
+CLAUDE_TIMEOUT="${DOCS_CHECK_TIMEOUT:-120}"
+ZERO_OID="0000000000000000000000000000000000000000"
+REF_COUNT=0
+STDERR_FILE=$(mktemp -t pre-push-claude-stderr.XXXXXX)
+trap 'rm -f "$STDERR_FILE"' EXIT
+
+# DOCS_CHECK_BASE 指定時は stale な origin/<base> による誤判定を防ぐため事前に fetch する
+if [ -n "${DOCS_CHECK_BASE:-}" ]; then
+  if ! git fetch --quiet origin "$DOCS_CHECK_BASE"; then
+    echo "[pre-push] DOCS_CHECK_BASE=$DOCS_CHECK_BASE の fetch に失敗。" >&2
+    exit 1
+  fi
+fi
+
+# push 対象の ref を 1 件ずつ stdin から読み込む
+while read -r LOCAL_REF LOCAL_OID REMOTE_REF REMOTE_OID; do
+  REF_COUNT=$((REF_COUNT + 1))
+
+  if [ "$LOCAL_OID" = "$ZERO_OID" ]; then
+    # ブランチ削除の場合はスキップ
+    continue
+  fi
+
+  if [ "$REMOTE_OID" = "$ZERO_OID" ]; then
+    # 新規ブランチ: 他のリモート参照に含まれない「今回 push する新規コミット」だけを対象にする
+    # (origin/<base> 固定で比較すると派生元ブランチの差分まで含んでしまうため rev-list で基点を辿る)
+    set +e
+    NEW_COMMITS=$(git rev-list "$LOCAL_OID" --not --remotes 2> "$STDERR_FILE")
+    REVLIST_EXIT=$?
+    set -e
+    if [ $REVLIST_EXIT -ne 0 ]; then
+      echo "[pre-push] git rev-list 失敗 (exit=$REVLIST_EXIT):" >&2
+      cat "$STDERR_FILE" >&2
+      exit 1
+    fi
+    if [ -z "$NEW_COMMITS" ]; then
+      continue
+    fi
+    OLDEST=$(echo "$NEW_COMMITS" | tail -n 1)
+
+    set +e
+    BASE_REF=$(git rev-parse --verify "${OLDEST}^" 2> "$STDERR_FILE")
+    REVPARSE_EXIT=$?
+    set -e
+    if [ $REVPARSE_EXIT -ne 0 ]; then
+      # 親が存在しないルートコミットの場合のみ差分基点が取れない (fail-closed)
+      PARENT_LINE=$(git cat-file -p "$OLDEST" 2>/dev/null | grep '^parent ' || true)
+      if [ -z "$PARENT_LINE" ]; then
+        echo "[pre-push] 最古コミット $OLDEST がルートコミットのため差分基点を取得できません。" >&2
+        echo "[pre-push]   DOCS_CHECK_BASE=<branch> で基点を明示指定してください。" >&2
+        exit 1
+      fi
+      echo "[pre-push] git rev-parse 失敗: ${OLDEST}^:" >&2
+      cat "$STDERR_FILE" >&2
+      exit 1
+    fi
+  elif [ -n "${DOCS_CHECK_BASE:-}" ]; then
+    # DOCS_CHECK_BASE が明示指定されている場合は既存ブランチでも指定ブランチを基点とする
+    # (force-push 時にリモート旧 HEAD との差分ではなく、PR ベースブランチとの差分でチェックできる)
+    BASE_REF="origin/$DOCS_CHECK_BASE"
+  else
+    # 既存ブランチ: リモート側の最新との差分
+    BASE_REF="$REMOTE_OID"
+  fi
+
+  # コード差分（判定起動の対象）と docs 差分を分けて取得する。
+  # docs 差分も claude に渡すことで「既に docs が更新済み」を DOCS_OK と判定可能にする。
+  set +e
+  CODE_DIFF=$(git diff "$BASE_REF"..."$LOCAL_OID" -- ':!docs/' ':!*.lock' ':!package-lock.json' 2>&1)
+  CODE_DIFF_EXIT=$?
+  set -e
+
+  if [ $CODE_DIFF_EXIT -ne 0 ]; then
+    echo "[pre-push] git diff (code) 失敗 (exit=$CODE_DIFF_EXIT):" >&2
+    echo "$CODE_DIFF" >&2
+    exit 1
+  fi
+
+  if [ -z "$CODE_DIFF" ]; then
+    # コード変更が無ければ docs チェックは不要
+    continue
+  fi
+
+  set +e
+  DOCS_DIFF=$(git diff "$BASE_REF"..."$LOCAL_OID" -- 'docs/' 2>&1)
+  DOCS_DIFF_EXIT=$?
+  set -e
+
+  if [ $DOCS_DIFF_EXIT -ne 0 ]; then
+    echo "[pre-push] git diff (docs/) 失敗 (exit=$DOCS_DIFF_EXIT):" >&2
+    echo "$DOCS_DIFF" >&2
+    exit 1
+  fi
+
+  if [ -z "$DOCS_DIFF" ]; then
+    DOCS_DIFF="(docs/ 配下に差分なし)"
+  fi
+
+  PROMPT="以下のコード差分と docs 差分を分析し、コード変更に対して docs/ 配下のドキュメントが十分に更新されているかを判定してください。
+
+判定基準:
+- 以下のいずれかに該当し、かつ対応する docs 更新が docs 差分に含まれていない → DOCS_REQUIRED
+  - アーキテクチャ変更（新しいサービス、DB構成変更、認証方式変更など）
+  - API エンドポイントの追加・変更・削除
+  - インフラ構成の変更
+  - 設計判断を伴う変更（新しいパターンの導入など）
+- バグ修正、リファクタリング、テスト追加、依存関係更新のみ → DOCS_OK
+- コード変更に対して必要な docs 更新が docs 差分に既に含まれている → DOCS_OK
+
+回答は必ず以下のいずれかの形式で、1行目から開始してください（前置き・コードフェンス禁止）:
+DOCS_OK
+DOCS_REQUIRED: <更新すべきドキュメントと理由>
+
+コード差分:
+$CODE_DIFF
+
+docs 差分:
+$DOCS_DIFF"
+
+  set +e
+  RESULT=$(echo "$PROMPT" | timeout "$CLAUDE_TIMEOUT" claude --print 2> "$STDERR_FILE")
+  CLAUDE_EXIT=$?
+  set -e
+  CLAUDE_STDERR=$(cat "$STDERR_FILE" 2>/dev/null || true)
+
+  FAIL_REASON=""
+  if [ $CLAUDE_EXIT -eq 124 ]; then
+    FAIL_REASON="claude がタイムアウト (${CLAUDE_TIMEOUT}s)"
+  elif [ $CLAUDE_EXIT -ne 0 ]; then
+    FAIL_REASON="claude 実行失敗 (exit=$CLAUDE_EXIT)"
+  elif [ -z "$RESULT" ]; then
+    FAIL_REASON="claude が空応答を返しました (exit=0)"
+  fi
+
+  if [ -n "$FAIL_REASON" ]; then
+    if [ "${DOCS_CHECK_FAIL_OPEN:-0}" = "1" ]; then
+      echo "[pre-push] $FAIL_REASON。DOCS_CHECK_FAIL_OPEN=1 のためスキップ。" >&2
+      continue
+    fi
+    echo "[pre-push] $FAIL_REASON:" >&2
+    if [ -n "$CLAUDE_STDERR" ]; then
+      echo "--- stderr ---" >&2
+      echo "$CLAUDE_STDERR" >&2
+      echo "--------------" >&2
+    fi
+    echo "[pre-push] DOCS_CHECK_FAIL_OPEN=1 でスキップ可能。" >&2
+    exit 1
+  fi
+
+  # 空行とコードフェンスを除去し最初の非空行を取得（stderr は混入しない）
+  FIRST_LINE=$(echo "$RESULT" | sed -E '/^(```|\s*$)/d' | head -n 1)
+
+  # 先頭行と本文の判定が矛盾していれば fail-closed
+  # (例: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含むケース)
+  if [ "$FIRST_LINE" = "DOCS_OK" ] && echo "$RESULT" | grep -qE '(^|[[:space:]])DOCS_REQUIRED([[:space:]:]|$)'; then
+    echo "[pre-push] 判定矛盾: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含みます（fail-closed）:" >&2
+    echo "$RESULT" >&2
+    exit 1
+  fi
+
+  case "$FIRST_LINE" in
+    "DOCS_OK")
+      echo "[pre-push] docs チェック OK"
+      ;;
+    "DOCS_REQUIRED" | "DOCS_REQUIRED:"*)
+      echo ""
+      echo "=========================================="
+      echo "[pre-push] docs 更新が必要です"
+      echo "=========================================="
+      echo ""
+      echo "$RESULT"
+      echo ""
+      echo "docs を更新してから再度 push してください。"
+      exit 1
+      ;;
+    *)
+      echo "[pre-push] 判定結果を解釈できませんでした（fail-closed）:" >&2
+      echo "$RESULT" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$REF_COUNT" -eq 0 ]; then
+  echo "[pre-push] ref を受け取れませんでした。hook の stdin 接続を確認してください。" >&2
+  exit 1
+fi
+
+exit 0
