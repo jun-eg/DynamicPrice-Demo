@@ -27,3 +27,16 @@ coverage/
 # Misc
 *.log
 *.tsbuildinfo
+
+# Data (実データはgit管理外。スキーマと取得手順だけドキュメント化する)
+data/raw/*
+data/processed/*
+*.csv
+*.parquet
+*.duckdb
+*.sqlite
+# ディレクトリ構造とサンプルデータは保持
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/sample.csv
+!data/README.md
