@@ -19,6 +19,9 @@ npm install
 
 ## 2. 環境変数の設定
 
+完全な一覧と本番との対応は `docs/runbooks/environment-variables.md` を参照。
+ローカル開発で最低限必要なもの:
+
 ルートに `.env` を作成(`.env.example` をコピー、※ `.env.example` は別途作成予定):
 
 ```bash
@@ -214,8 +217,12 @@ WIF / Service Account の初期設定手順は `docs/runbooks/cicd-setup.md`(別
 ## 関連
 
 - `docs/architecture/01-overview.md`
+- `docs/architecture/04-api-contract.md`
+- `docs/runbooks/environment-variables.md`
 - `docs/adr/0001-monorepo-and-stack.md`
 - `docs/adr/0002-deployment-cloud-run.md`
 - `docs/adr/0003-auth-google-signin-invite.md`
 - `docs/adr/0004-data-management.md`
 - `docs/adr/0005-cicd-github-actions.md`
+- `docs/adr/0006-api-contract-and-auth.md`
+- `docs/adr/0007-coefficient-estimation.md`
