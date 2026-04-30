@@ -228,11 +228,13 @@ $DOCS_DIFF"
   FIRST_LINE=$(echo "$RESULT" | sed -E '/^(```|\s*$)/d' | head -n 1)
 
   # 先頭行と本文の判定が矛盾していれば fail-closed
-  # (例: 先頭 DOCS_OK 系だが本文に DOCS_REQUIRED を含むケース)
+  # (例: 先頭 DOCS_OK 系だが、別の行頭に DOCS_REQUIRED 判定が出ているケース)
+  # 行頭マッチに限定するのは、説明文中の "DOCS_REQUIRED" という単語（プロンプト指示の説明など）
+  # を矛盾と誤検知するのを避けるため。判定結果としての DOCS_REQUIRED は必ず行頭に出る。
   case "$FIRST_LINE" in
     "DOCS_OK" | "DOCS_OK:"*)
-      if echo "$RESULT" | grep -qE '(^|[[:space:]])DOCS_REQUIRED([[:space:]:]|$)'; then
-        echo "[pre-push] 判定矛盾: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含みます（fail-closed）:" >&2
+      if echo "$RESULT" | grep -qE '^DOCS_REQUIRED([[:space:]:]|$)'; then
+        echo "[pre-push] 判定矛盾: 先頭 DOCS_OK だが別行に DOCS_REQUIRED 判定を含みます（fail-closed）:" >&2
         echo "$RESULT" >&2
         exit 1
       fi
