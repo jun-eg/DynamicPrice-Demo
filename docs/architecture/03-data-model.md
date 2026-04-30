@@ -76,12 +76,13 @@
 
 ### `RoomType` — 部屋タイプ・マスター
 
-| カラム      | 型       | 備考                       |
-| ----------- | -------- | -------------------------- |
-| `id`        | int (PK) | 自動採番                   |
-| `code`      | string   | UNIQUE。元CSVの分類に対応  |
-| `name`      | string   | 表示名                     |
-| `capacity`  | int?     | 定員                       |
+| カラム            | 型       | 備考                                        |
+| ----------------- | -------- | ------------------------------------------- |
+| `id`              | int (PK) | 自動採番                                    |
+| `code`            | string   | UNIQUE。元CSVの分類に対応                   |
+| `name`            | string   | 表示名                                      |
+| `capacity`        | int?     | 定員                                        |
+| `inventoryCount`  | int      | 部屋数。稼働率の分母に使う(`02-pricing-model.md`) |
 
 ### `Plan` — プラン・マスター
 
