@@ -26,7 +26,7 @@ npm install
 
 ```bash
 # DB(ローカル Docker)
-DATABASE_URL="postgresql://devuser:devpass@localhost:5432/dynamic_price?schema=public"
+DATABASE_URL="postgresql://devuser:devpass@localhost:55432/dynamic_price?schema=public"
 
 # Auth.js
 AUTH_SECRET="<openssl rand -base64 32 で生成>"
@@ -55,7 +55,7 @@ services:
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: dynamic_price
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 volumes:

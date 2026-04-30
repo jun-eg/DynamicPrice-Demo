@@ -27,7 +27,7 @@
 
 | 変数名         | 必須     | ローカル例                                                                   | 本番(Cloud Run)  | 用途                              |
 | -------------- | -------- | ---------------------------------------------------------------------------- | ----------------- | --------------------------------- |
-| `DATABASE_URL` | yes      | `postgresql://devuser:devpass@localhost:5432/dynamic_price?schema=public`     | Secret Manager    | Prisma 接続                       |
+| `DATABASE_URL` | yes      | `postgresql://devuser:devpass@localhost:55432/dynamic_price?schema=public`    | Secret Manager    | Prisma 接続                       |
 | `AUTH_SECRET`  | yes      | (web と同値)                                                                 | Secret Manager    | JWT 署名検証                      |
 | `PORT`         | no       | `8080`                                                                       | Cloud Run が設定  | リッスンポート                    |
 | `NODE_ENV`     | yes      | `development`                                                                | `production`      | 標準                              |
@@ -67,7 +67,7 @@ Cloud Run のサービスから IAM 経由で参照する。
 
 ```bash
 # DB(ローカル Docker)
-DATABASE_URL="postgresql://devuser:devpass@localhost:5432/dynamic_price?schema=public"
+DATABASE_URL="postgresql://devuser:devpass@localhost:55432/dynamic_price?schema=public"
 
 # Auth.js(web/api 共通)
 AUTH_SECRET=""

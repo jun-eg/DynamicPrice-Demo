@@ -4,7 +4,11 @@
     "defaultMode": "bypassPermissions",
     "deny": [
       "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(./.env.local)",
+      "Edit(./.env)",
+      "Edit(./.env.local)",
+      "Write(./.env)",
+      "Write(./.env.local)",
       "Edit(./.claude/**)",
       "Write(./.claude/**)",
       "Bash(git push origin main:*)",
