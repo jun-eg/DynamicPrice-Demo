@@ -16,15 +16,25 @@
     "lint:workspaces": "npm run lint --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit -p tsconfig.base.json"
+    "typecheck": "tsc --noEmit -p tsconfig.base.json",
+    "db:seed-master": "tsx scripts/seed/master.ts",
+    "db:seed-reservations": "tsx scripts/seed/reservations.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@types/node": "^20.17.10",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^16.4.7",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.14.0",
+    "iconv-lite": "^0.6.3",
     "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "dependencies": {
+    "@app/db": "*"
   }
 }
