@@ -126,20 +126,67 @@ while read -r LOCAL_REF LOCAL_OID REMOTE_REF REMOTE_OID; do
     DOCS_DIFF="(docs/ 配下に差分なし)"
   fi
 
-  PROMPT="以下のコード差分と docs 差分を分析し、コード変更に対して docs/ 配下のドキュメントが十分に更新されているかを判定してください。
+  # 既存 docs（push 対象コミット時点の全文）を取得し、claude が
+  # 「コード変更内容が既に docs に記録されているか」を判定できるようにする。
+  # 差分ではなく全文を渡すのは、過去の commit で記録済みの設計・手順を
+  # 「DOCS_REQUIRED」と誤検知するのを避けるため。
+  set +e
+  EXISTING_DOCS_FILES=$(git ls-tree -r --name-only "$LOCAL_OID" -- \
+    'docs/architecture/' 'docs/adr/' 'docs/runbooks/' 2> "$STDERR_FILE" | grep -E '\.md$' || true)
+  LSTREE_EXIT=$?
+  set -e
 
-判定基準:
-- 以下のいずれかに該当し、かつ対応する docs 更新が docs 差分に含まれていない → DOCS_REQUIRED
-  - アーキテクチャ変更（新しいサービス、DB構成変更、認証方式変更など）
-  - API エンドポイントの追加・変更・削除
-  - インフラ構成の変更
-  - 設計判断を伴う変更（新しいパターンの導入など）
-- バグ修正、リファクタリング、テスト追加、依存関係更新のみ → DOCS_OK
-- コード変更に対して必要な docs 更新が docs 差分に既に含まれている → DOCS_OK
+  if [ $LSTREE_EXIT -ne 0 ]; then
+    echo "[pre-push] git ls-tree 失敗 (exit=$LSTREE_EXIT):" >&2
+    cat "$STDERR_FILE" >&2
+    exit 1
+  fi
+
+  EXISTING_DOCS=""
+  if [ -n "$EXISTING_DOCS_FILES" ]; then
+    while IFS= read -r DOC_PATH; do
+      [ -z "$DOC_PATH" ] && continue
+      set +e
+      DOC_BODY=$(git show "${LOCAL_OID}:${DOC_PATH}" 2> "$STDERR_FILE")
+      SHOW_EXIT=$?
+      set -e
+      if [ $SHOW_EXIT -ne 0 ]; then
+        echo "[pre-push] git show ${LOCAL_OID}:${DOC_PATH} 失敗 (exit=$SHOW_EXIT):" >&2
+        cat "$STDERR_FILE" >&2
+        exit 1
+      fi
+      EXISTING_DOCS+="--- ${DOC_PATH} ---"$'\n'
+      EXISTING_DOCS+="$DOC_BODY"$'\n\n'
+    done <<< "$EXISTING_DOCS_FILES"
+  fi
+  if [ -z "$EXISTING_DOCS" ]; then
+    EXISTING_DOCS="(docs/architecture, docs/adr, docs/runbooks 配下に既存 .md なし)"
+  fi
+
+  PROMPT="以下の「既存 docs」「コード差分」「docs 差分」を分析し、コード変更に対して docs/ 配下のドキュメントが十分に網羅されているかを判定してください。
+
+判定基準（優先順位順）:
+1. コード変更の内容が「既存 docs」に既に記述されている → DOCS_OK
+   - 例: コード差分が既存 docs の設計通り・runbook の手順通りの実装である
+   - この場合は回答に既出の docs ファイルパスを含めること
+2. コード変更に必要な docs 更新が「docs 差分」に既に含まれている → DOCS_OK
+3. 既存 docs にも docs 差分にも未記載で、以下のいずれかに該当 → DOCS_REQUIRED
+   - アーキテクチャ変更（新しいサービス、DB 構成変更、認証方式変更など）
+   - API エンドポイントの追加・変更・削除
+   - インフラ構成の変更
+   - 設計判断を伴う変更（新しいパターンの導入など）
+4. バグ修正、リファクタリング、テスト追加、依存関係更新のみ → DOCS_OK
+
+重要: 「既存 docs」に該当する記述がある場合は DOCS_REQUIRED にしないこと。
+既出の場合は必ず DOCS_OK と回答し、参照した docs ファイルパスを示してください。
 
 回答は必ず以下のいずれかの形式で、1行目から開始してください（前置き・コードフェンス禁止）:
 DOCS_OK
+DOCS_OK: <既出の docs ファイルパス（複数可、カンマ区切り）>
 DOCS_REQUIRED: <更新すべきドキュメントと理由>
+
+既存 docs:
+$EXISTING_DOCS
 
 コード差分:
 $CODE_DIFF
@@ -181,16 +228,24 @@ $DOCS_DIFF"
   FIRST_LINE=$(echo "$RESULT" | sed -E '/^(```|\s*$)/d' | head -n 1)
 
   # 先頭行と本文の判定が矛盾していれば fail-closed
-  # (例: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含むケース)
-  if [ "$FIRST_LINE" = "DOCS_OK" ] && echo "$RESULT" | grep -qE '(^|[[:space:]])DOCS_REQUIRED([[:space:]:]|$)'; then
-    echo "[pre-push] 判定矛盾: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含みます（fail-closed）:" >&2
-    echo "$RESULT" >&2
-    exit 1
-  fi
+  # (例: 先頭 DOCS_OK 系だが本文に DOCS_REQUIRED を含むケース)
+  case "$FIRST_LINE" in
+    "DOCS_OK" | "DOCS_OK:"*)
+      if echo "$RESULT" | grep -qE '(^|[[:space:]])DOCS_REQUIRED([[:space:]:]|$)'; then
+        echo "[pre-push] 判定矛盾: 先頭 DOCS_OK だが本文に DOCS_REQUIRED を含みます（fail-closed）:" >&2
+        echo "$RESULT" >&2
+        exit 1
+      fi
+      ;;
+  esac
 
   case "$FIRST_LINE" in
     "DOCS_OK")
       echo "[pre-push] docs チェック OK"
+      ;;
+    "DOCS_OK:"*)
+      echo "[pre-push] docs チェック OK（既存 docs 参照）"
+      echo "$FIRST_LINE"
       ;;
     "DOCS_REQUIRED" | "DOCS_REQUIRED:"*)
       echo ""
@@ -201,6 +256,8 @@ $DOCS_DIFF"
       echo "$RESULT"
       echo ""
       echo "docs を更新してから再度 push してください。"
+      echo "既存 docs に既に記述があるなら、当該 docs を編集して該当箇所を明示するか、"
+      echo "コミットメッセージで参照を補足してから再 push してください。"
       exit 1
       ;;
     *)
