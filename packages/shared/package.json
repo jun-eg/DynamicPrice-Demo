@@ -1,0 +1,11 @@
+{
+  "name": "@app/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "共有型・定数・価格計算純粋関数 - Step 0 スケルトン",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "eslint --no-error-on-unmatched-pattern --max-warnings=0 \"src/**/*.{ts,tsx,js,jsx}\""
+  }
+}

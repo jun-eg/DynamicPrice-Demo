@@ -1,0 +1,9 @@
+{
+  "name": "@app/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Prisma スキーマ・migration・client - Step 0 スケルトン",
+  "scripts": {
+    "lint": "eslint --no-error-on-unmatched-pattern --max-warnings=0 \"src/**/*.{ts,tsx,js,jsx}\""
+  }
+}
