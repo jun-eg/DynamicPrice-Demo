@@ -1,0 +1,9 @@
+{
+  "name": "@app/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "管理画面 (Next.js, App Router) - Step 0 スケルトン",
+  "scripts": {
+    "lint": "eslint --no-error-on-unmatched-pattern --max-warnings=0 \"src/**/*.{ts,tsx,js,jsx}\""
+  }
+}
