@@ -97,16 +97,23 @@
 
 `RoomType × Plan` の組合せに対する基準価格。Seed で投入し、変更は DB 直接(MVPでは編集UIなし)。
 
-| カラム          | 型       | 備考                       |
-| --------------- | -------- | -------------------------- |
-| `id`            | int (PK) | 自動採番                   |
-| `roomTypeId`    | int (FK) | → `RoomType`               |
-| `planId`        | int (FK) | → `Plan`                   |
-| `amount`        | decimal  | 基準価格(税込)           |
-| `effectiveFrom` | date     | 適用開始日                 |
-| `effectiveTo`   | date?    | 適用終了日(NULLなら継続) |
+| カラム          | 型       | 備考                                                         |
+| --------------- | -------- | ------------------------------------------------------------ |
+| `id`            | int (PK) | 自動採番                                                     |
+| `roomTypeId`    | int (FK) | → `RoomType`                                                 |
+| `planId`        | int (FK) | → `Plan`                                                     |
+| `amount`        | decimal  | 基準価格(税込)                                              |
+| `priceMin`      | decimal  | 推奨価格の下限(税込)。算出値はこの値でクランプされる        |
+| `priceMax`      | decimal  | 推奨価格の上限(税込)。算出値はこの値でクランプされる        |
+| `effectiveFrom` | date     | 適用開始日                                                   |
+| `effectiveTo`   | date?    | 適用終了日(NULLなら継続)                                    |
 
 **ユニーク制約**: `(roomTypeId, planId, effectiveFrom)`
+**CHECK 制約**: `priceMin <= priceMax`
+
+`priceMin` / `priceMax` は「極端な値段が出ない安全弁」(`02-pricing-model.md` レイヤー1)。
+`amount` との大小関係は制約しない(運用上、基準価格を一時的に上下限の外に置くケースを許容)。
+保持粒度の判断根拠は ADR-0008 を参照。
 
 ### `PriceCoefficient` — 自動推定された係数
 
