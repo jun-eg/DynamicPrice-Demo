@@ -3,12 +3,14 @@
 import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
 import type { HealthzResponse } from '@app/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { Public } from '../auth/decorators/public.decorator.js';
 import { structuredLog } from '../common/logger/structured-logger.js';
 
 @Controller('healthz')
 export class HealthzController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Public()
   @Get()
   async check(): Promise<HealthzResponse> {
     try {

@@ -18,10 +18,12 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit -p tsconfig.base.json",
     "db:seed-master": "tsx scripts/seed/master.ts",
-    "db:seed-reservations": "tsx scripts/seed/reservations.ts"
+    "db:seed-reservations": "tsx scripts/seed/reservations.ts",
+    "dev:issue-jwt": "tsx scripts/dev/issue-jwt.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.17.10",
     "csv-parse": "^5.6.0",
     "dotenv": "^16.4.7",
@@ -29,6 +31,7 @@
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.14.0",
     "iconv-lite": "^0.6.3",
+    "jsonwebtoken": "^9.0.2",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
