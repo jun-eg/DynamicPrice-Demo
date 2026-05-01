@@ -10,7 +10,8 @@
     "dev": "node --import @swc-node/register/esm-register --watch src/main.ts",
     "start": "node --import @swc-node/register/esm-register src/main.ts",
     "lint": "eslint --no-error-on-unmatched-pattern --max-warnings=0 \"src/**/*.{ts,tsx,js,jsx}\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:e2e": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@app/db": "*",
@@ -20,14 +21,21 @@
     "@nestjs/platform-express": "^10.4.15",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@nestjs/testing": "^10.4.15",
     "@swc-node/register": "^1.11.1",
     "@swc/core": "^1.15.32",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.17.10",
-    "typescript": "^5.7.3"
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.3",
+    "unplugin-swc": "^1.5.1",
+    "vitest": "^2.1.9"
   }
 }

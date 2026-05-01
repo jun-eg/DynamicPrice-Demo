@@ -1,10 +1,11 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { HealthzModule } from './healthz/healthz.module.js';
+import { AuthModule } from './auth/auth.module.js';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware.js';
 
 @Module({
-  imports: [PrismaModule, HealthzModule],
+  imports: [PrismaModule, AuthModule, HealthzModule],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
