@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { CoefficientModule } from './coefficients/coefficient.module.js';
 import { RecommendationsModule } from './recommendations/recommendations.module.js';
 import { StatsModule } from './stats/stats.module.js';
+import { AdminModule } from './admin/admin.module.js';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware.js';
 
 @Module({
@@ -15,6 +16,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     CoefficientModule,
     RecommendationsModule,
     StatsModule,
+    AdminModule,
   ],
 })
 export class AppModule implements NestModule {
