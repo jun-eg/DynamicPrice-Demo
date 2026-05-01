@@ -4,10 +4,18 @@ import { HealthzModule } from './healthz/healthz.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CoefficientModule } from './coefficients/coefficient.module.js';
 import { RecommendationsModule } from './recommendations/recommendations.module.js';
+import { StatsModule } from './stats/stats.module.js';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, HealthzModule, CoefficientModule, RecommendationsModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    HealthzModule,
+    CoefficientModule,
+    RecommendationsModule,
+    StatsModule,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
