@@ -47,7 +47,8 @@
 
 - 1 回の推定実行で `(SEASON × 12) + (DAY_OF_WEEK × 7) + (LEAD_TIME × 5) = 24 行` の `PriceCoefficient` を作成
 - 全行で同じ `computedAt` を持つ
-- `source` は `unit_price_avg_v1` で固定
+- 自動推定時の `source` は `unit_price_avg_v1`
+- ADMIN が画面から手動保存した場合は `source = 'manual'` で新バッチを作成する。推奨価格計算は最新 `computedAt` を参照するため保存後即反映される
 
 ### 外れ値処理
 
@@ -101,7 +102,8 @@
 ## 影響
 
 - 係数再計算ジョブ(`POST /admin/coefficients/recompute` または `npm run coef:recompute`)で上記式を実装
-- `PriceCoefficient.source` は `unit_price_avg_v1` で固定
+- `PriceCoefficient.source` は自動推定時 `unit_price_avg_v1`、手動保存時 `manual`
+- ADMIN は係数画面から推定値をベースに任意の値へ上書きできる(`PUT /admin/coefficients`)
 - 画面では `value = 1.0` のキーは「データ不足」と注記表示
 
 ## 関連

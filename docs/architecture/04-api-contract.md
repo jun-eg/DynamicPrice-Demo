@@ -65,6 +65,7 @@ web (Next.js) ↔ api (NestJS) 間の REST API 仕様。
 | GET      | `/admin/users`                    | ADMIN       | ユーザー一覧             |
 | PATCH    | `/admin/users/:id`                | ADMIN       | ユーザー無効化           |
 | POST     | `/admin/coefficients/recompute`   | ADMIN       | 係数の再推定             |
+| PUT      | `/admin/coefficients`             | ADMIN       | 係数の手動保存           |
 
 ## エンドポイント詳細
 
@@ -317,6 +318,39 @@ DB 失敗時(503):
 ```
 
 監査ログ: `COEFFICIENT_RECOMPUTE` を記録。
+
+---
+
+### `PUT /admin/coefficients`
+
+係数を手動で保存する。現在の推定値をデフォルトとして画面から任意の値に変更できる。
+
+リクエストボディ:
+
+```json
+{
+  "items": [
+    { "type": "SEASON", "key": "3", "value": "1.1000" },
+    { "type": "DAY_OF_WEEK", "key": "SAT", "value": "1.0500" }
+  ]
+}
+```
+
+- `items` は非空配列。`type` / `key` は既存の係数キーと同一。
+- `value` は小数4桁文字列。保存時に `toFixed(4)` で正規化する。
+- `source = 'manual'` として新しい `computedAt` のバッチを作成する。推奨価格計算は最新 `computedAt` を参照するため、保存後即反映される。
+
+レスポンス(200):
+
+```json
+{
+  "computedAt": "2026-05-02T10:00:00Z",
+  "source": "manual",
+  "rowsCreated": 24
+}
+```
+
+監査ログ: `COEFFICIENT_MANUAL_SAVE` を記録。
 
 ## 共有型の置き場
 
