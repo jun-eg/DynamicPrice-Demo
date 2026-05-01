@@ -5,7 +5,9 @@ import type {
   StatsAdrResponse,
   StatsLeadTimeResponse,
 } from '@app/shared';
+import { Suspense } from 'react';
 import StatsCharts from './_components/StatsCharts';
+import StatsRangeFilter from './_components/StatsRangeFilter';
 
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
@@ -18,7 +20,11 @@ function defaultRange(): { from: string; to: string } {
   return { from: `${fromY}-${fromM}`, to: `${y}-${toM}` };
 }
 
-export default async function StatsPage() {
+interface PageProps {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}
+
+export default async function StatsPage({ searchParams }: PageProps) {
   const session = await auth();
   if (!session?.user) {
     return <p>セッションが切れました。再ログインしてください。</p>;
@@ -30,7 +36,10 @@ export default async function StatsPage() {
     role: session.user.role,
   };
 
-  const { from, to } = defaultRange();
+  const params = await searchParams;
+  const def = defaultRange();
+  const from = params.from ?? def.from;
+  const to = params.to ?? def.to;
   const qs = new URLSearchParams({ from, to }).toString();
 
   let occupancy: StatsOccupancyResponse | null = null;
@@ -51,9 +60,9 @@ export default async function StatsPage() {
   return (
     <div>
       <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>統計</h1>
-      <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-        期間: {from} 〜 {to}
-      </p>
+      <Suspense>
+        <StatsRangeFilter from={from} to={to} />
+      </Suspense>
       {errorMsg ? (
         <p role="alert" style={{ color: '#b00020' }}>
           {errorMsg}

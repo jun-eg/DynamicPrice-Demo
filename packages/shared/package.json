@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "共有型・定数・価格計算純粋関数",
+  "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {

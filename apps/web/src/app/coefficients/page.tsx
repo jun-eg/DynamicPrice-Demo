@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { apiFetch } from '@/lib/api-client';
 import type { CoefficientsResponse } from '@app/shared';
 import CoefficientsCharts from './_components/CoefficientsCharts';
+import CoefficientsEditor from './_components/CoefficientsEditor';
 
 export default async function CoefficientsPage() {
   const session = await auth();
@@ -31,11 +32,16 @@ export default async function CoefficientsPage() {
           {errorMsg}
         </p>
       ) : data ? (
-        <CoefficientsCharts
-          items={data.items}
-          computedAt={data.computedAt}
-          source={data.source}
-        />
+        <>
+          <CoefficientsCharts
+            items={data.items}
+            computedAt={data.computedAt}
+            source={data.source}
+          />
+          {session.user.role === 'ADMIN' && (
+            <CoefficientsEditor items={data.items} />
+          )}
+        </>
       ) : null}
     </div>
   );
