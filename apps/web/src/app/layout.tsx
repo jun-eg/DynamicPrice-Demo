@@ -1,17 +1,25 @@
-// ルートレイアウト。MVP では装飾なしの最小実装。
-// Step 11 以降で UI 設計を入れる前提。
-
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { auth } from '@/auth';
+import AppShell from '@/components/AppShell';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'DynamicPrice Demo',
   description: '旅館向け動的価格決定支援ツール (試験運用)',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const session = await auth();
+
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body style={{ margin: 0, fontFamily: 'sans-serif' }}>
+        {session?.user ? (
+          <AppShell role={session.user.role}>{children}</AppShell>
+        ) : (
+          children
+        )}
+      </body>
     </html>
   );
 }
