@@ -56,12 +56,13 @@ ADR-0005 参照。
 
 Cloud Run のサービスから IAM 経由で参照する。
 
-| Secret 名                      | 中身                                  |
-| ------------------------------ | ------------------------------------- |
-| `auth-secret`                  | Auth.js 署名シークレット              |
-| `google-oauth-client-id`       | Google OAuth クライアント ID          |
-| `google-oauth-client-secret`   | Google OAuth クライアントシークレット |
-| `database-url`                 | 本番 Cloud SQL の接続文字列           |
+| Secret 名                      | 中身                                                                          |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `auth-secret`                  | Auth.js 署名シークレット                                                      |
+| `google-oauth-client-id`       | Google OAuth クライアント ID                                                  |
+| `google-oauth-client-secret`   | Google OAuth クライアントシークレット                                         |
+| `database-url`                 | 本番 Cloud SQL の接続文字列(Cloud Run の Unix socket 経由)                    |
+| `database-url-migrate`         | GitHub Actions の `prisma migrate deploy` 用(Cloud SQL Auth Proxy TCP 経由)   |
 
 ## ローカル `.env.example`(コミット対象)
 
