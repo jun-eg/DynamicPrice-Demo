@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type { Role } from '@app/shared';
 import { signOut } from '@/auth';
+import NavLinks from './NavLinks';
 
 interface AppShellProps {
   role: Role;
@@ -16,34 +17,17 @@ export default function AppShell({ role, children }: AppShellProps) {
           display: 'flex',
           gap: '1.5rem',
           alignItems: 'center',
-          padding: '0.75rem 1.5rem',
+          padding: '0 1.5rem',
+          height: '48px',
           background: '#1e293b',
           color: '#f1f5f9',
         }}
       >
-        <Link href="/" style={{ color: '#f1f5f9', fontWeight: 'bold', textDecoration: 'none' }}>
+        <Link href="/" style={{ color: '#f1f5f9', fontWeight: 'bold', textDecoration: 'none', fontSize: '0.95rem', marginRight: '0.5rem' }}>
           DynamicPrice
         </Link>
-        <Link href="/recommendations" style={{ color: '#cbd5e1', textDecoration: 'none' }}>
-          推奨価格
-        </Link>
-        <Link href="/stats" style={{ color: '#cbd5e1', textDecoration: 'none' }}>
-          統計
-        </Link>
-        <Link href="/coefficients" style={{ color: '#cbd5e1', textDecoration: 'none' }}>
-          係数
-        </Link>
-        {role === 'ADMIN' && (
-          <>
-            <Link href="/admin/invite" style={{ color: '#93c5fd', textDecoration: 'none' }}>
-              招待
-            </Link>
-            <Link href="/admin/users" style={{ color: '#93c5fd', textDecoration: 'none' }}>
-              ユーザー管理
-            </Link>
-          </>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#94a3b8' }}>
+        <NavLinks role={role} />
+        <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#94a3b8' }}>
           {role}
         </span>
         <form
@@ -61,6 +45,7 @@ export default function AppShell({ role, children }: AppShellProps) {
               padding: '0.25rem 0.75rem',
               borderRadius: '0.25rem',
               cursor: 'pointer',
+              fontSize: '0.8rem',
             }}
           >
             ログアウト

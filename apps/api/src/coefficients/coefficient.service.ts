@@ -26,6 +26,12 @@ export interface RecomputeResult {
   totalSampleSize: number;
 }
 
+export interface SaveResult {
+  computedAt: Date;
+  source: string;
+  rowsCreated: number;
+}
+
 export interface LatestCoefficientItem {
   type: CoefficientType;
   key: string;
@@ -103,6 +109,40 @@ export class CoefficientService {
       rowsCreated: created,
       totalSampleSize: inputs.length,
     };
+  }
+
+  async save(
+    actorId: number,
+    items: Array<{ type: CoefficientType; key: string; value: string }>,
+  ): Promise<SaveResult> {
+    const computedAt = new Date();
+    const source = 'manual';
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.priceCoefficient.createMany({
+        data: items.map((item) => ({
+          type: item.type,
+          key: item.key,
+          value: new Decimal(item.value).toFixed(4),
+          computedAt,
+          source,
+        })),
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'COEFFICIENT_MANUAL_SAVE',
+          payload: {
+            source,
+            computedAt: computedAt.toISOString(),
+            rowsCreated: result.count,
+          },
+        },
+      });
+      return result.count;
+    });
+
+    return { computedAt, source, rowsCreated: created };
   }
 
   async findLatest(

@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  Cell,
 } from 'recharts';
 import type { CoefficientItem } from '@app/shared';
 
@@ -26,6 +25,12 @@ const BAR_FALLBACK = '#f59e0b';
 type TypeGroup = {
   label: string;
   key: 'SEASON' | 'DAY_OF_WEEK' | 'LEAD_TIME';
+};
+
+const DAY_OF_WEEK_ORDER = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const LEAD_TIME_ORDER = ['0-3', '4-7', '8-14', '15-30', '31+'];
+const DAY_OF_WEEK_LABELS: Record<string, string> = {
+  MON: '月', TUE: '火', WED: '水', THU: '木', FRI: '金', SAT: '土', SUN: '日',
 };
 
 const GROUPS: TypeGroup[] = [
@@ -48,11 +53,24 @@ export default function CoefficientsCharts({
         ★ 黄色バー = フォールバック値（サンプル数が不足しているため推定値を使用）
       </p>
       {GROUPS.map(({ label, key }) => {
-        const group = items.filter((i) => i.type === key);
+        const rawGroup = items.filter((i) => i.type === key);
+        const group = key === 'DAY_OF_WEEK'
+          ? [...rawGroup].sort((a, b) => DAY_OF_WEEK_ORDER.indexOf(a.key) - DAY_OF_WEEK_ORDER.indexOf(b.key))
+          : key === 'SEASON'
+          ? [...rawGroup].sort((a, b) => Number(a.key) - Number(b.key))
+          : key === 'LEAD_TIME'
+          ? [...rawGroup].sort((a, b) => LEAD_TIME_ORDER.indexOf(a.key) - LEAD_TIME_ORDER.indexOf(b.key))
+          : rawGroup;
         const data = group.map((i) => ({
-          name: i.key,
+          name: key === 'DAY_OF_WEEK'
+            ? (DAY_OF_WEEK_LABELS[i.key] ?? i.key)
+            : key === 'SEASON'
+            ? `${i.key}月`
+            : key === 'LEAD_TIME'
+            ? (i.key === '31+' ? '31日以上' : `${i.key}日`)
+            : i.key,
           係数: parseFloat(i.value),
-          fallback: i.fallback,
+          fill: i.fallback ? BAR_FALLBACK : BAR_NORMAL,
         }));
 
         return (
@@ -69,14 +87,7 @@ export default function CoefficientsCharts({
                   }
                 />
                 <Legend />
-                <Bar dataKey="係数">
-                  {data.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={entry.fallback ? BAR_FALLBACK : BAR_NORMAL}
-                    />
-                  ))}
-                </Bar>
+                <Bar dataKey="係数" />
               </BarChart>
             </ResponsiveContainer>
           </section>
