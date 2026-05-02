@@ -47,7 +47,7 @@
 #### 推定式
 
 ```
-1泊単価 = totalAmount / nights      (cancelDate IS NULL の Reservation のみ)
+1泊単価 = totalAmount / (nights × roomCount)   (cancelDate IS NULL の Reservation のみ)
 
 季節係数(月M)            = avg(1泊単価 | checkInDate.month = M)     / avg(1泊単価, 全期間)
 曜日係数(曜日D)          = avg(1泊単価 | checkInDate.dow = D)       / avg(1泊単価, 全期間)
@@ -57,6 +57,7 @@
 - リードタイム = `checkInDate - bookedDate`(日数)
 - ビン: `0-3 / 4-7 / 8-14 / 15-30 / 31+`
 - 連泊予約は **1 レコード = 1 行** で扱う(夜単位に展開しない)。チェックイン日に紐付ける
+- `roomCount` は CSV「室数」列を取り込んだ値(issue #59)。1 レコードで複数室を確保した予約は分母に nights × roomCount で算入する
 - 推定対象期間: 直近 24ヶ月
 - サンプル数 30 件未満のキーは係数 = `1.0` にフォールバック(画面では「データ不足」と表示)
 
@@ -113,22 +114,27 @@
 
 ```
 稼働率(月M) = 売れた部屋夜数 / 総部屋夜数
-  売れた部屋夜数 = sum(reservation.nights)  ※ checkInDate が月M、cancelDate IS NULL
+  売れた部屋夜数 = sum(reservation.nights × reservation.roomCount)
+                  ※ checkInDate が月M、cancelDate IS NULL
   総部屋夜数     = sum(roomType.inventoryCount × 月Mの日数)
 ```
 
-- `RoomType.inventoryCount` は部屋数(`03-data-model.md`)
+- `RoomType.inventoryCount` は部屋数(`03-data-model.md`)。Web 管理画面 (`/admin/room-types`) から ADMIN が編集できる(issue #59)
+- `Reservation.roomCount` は CSV「室数」列(issue #59)。1 レコードで複数室を確保した予約も分子に正しく反映する
 - 連泊は丸ごと checkInDate の月に算入する(係数推定と同じ単純化)
+- `inventoryCount` を変更すると過去月の稼働率にも遡及で影響する(履歴管理は試作段階では不採用)
 
 ### ADR (Average Daily Rate)
 
 ```
 ADR(月M) = 総売上 / 売れた部屋夜数
-  総売上         = sum(reservation.totalAmount)  ※ checkInDate が月M、cancelDate IS NULL
-  売れた部屋夜数 = sum(reservation.nights)
+  総売上         = sum(reservation.totalAmount)
+                  ※ checkInDate が月M、cancelDate IS NULL
+  売れた部屋夜数 = sum(reservation.nights × reservation.roomCount)
 ```
 
 - `totalAmount` は元CSV の値そのまま(税込前提)
+- 売れた部屋夜数の数え方は稼働率と一致させる(issue #59)
 - 連泊は丸ごと checkInDate の月に算入する
 
 ### リードタイム分布

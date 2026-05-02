@@ -61,6 +61,7 @@ export class CoefficientService {
       select: {
         totalAmount: true,
         nights: true,
+        roomCount: true,
         checkInDate: true,
         bookedDate: true,
       },
@@ -69,6 +70,7 @@ export class CoefficientService {
     const inputs: CoefficientInput[] = reservations.map((r) => ({
       totalAmount: new Decimal(r.totalAmount.toString()),
       nights: r.nights,
+      roomCount: r.roomCount,
       checkInDate: r.checkInDate,
       bookedDate: r.bookedDate,
     }));
