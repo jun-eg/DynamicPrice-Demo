@@ -7,3 +7,4 @@ export * from './admin-invitations.js';
 export * from './admin-users.js';
 export * from './admin-coefficients.js';
 export * from './admin-room-types.js';
+export * from './admin-base-prices.js';
