@@ -49,6 +49,7 @@
 | `WIF_PROVIDER`          | Workload Identity Provider のリソース名                         |
 | `WIF_SERVICE_ACCOUNT`   | GitHub Actions が impersonate する SA                            |
 | `CLOUD_SQL_INSTANCE`    | `prisma migrate deploy` 用の Cloud SQL インスタンス接続名         |
+| `SEED_ADMIN_EMAIL`      | デプロイ時 `db:seed-master` で作成する初期 ADMIN ユーザーのメール |
 
 ADR-0005 参照。
 
