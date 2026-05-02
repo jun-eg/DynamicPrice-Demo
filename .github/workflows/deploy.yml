@@ -166,8 +166,9 @@ jobs:
             --region "${{ env.GCP_REGION }}" \
             --platform managed \
             --allow-unauthenticated \
+            --add-cloudsql-instances "${{ secrets.CLOUD_SQL_INSTANCE }}" \
             --set-env-vars "NODE_ENV=production,API_BASE_URL=${{ steps.deploy-api.outputs.url }}" \
-            --set-secrets "AUTH_SECRET=auth-secret:latest,GOOGLE_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_CLIENT_SECRET=google-oauth-client-secret:latest" \
+            --set-secrets "DATABASE_URL=database-url:latest,AUTH_SECRET=auth-secret:latest,GOOGLE_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_CLIENT_SECRET=google-oauth-client-secret:latest" \
             --quiet
           WEB_URL=$(gcloud run services describe "${{ env.WEB_SERVICE }}" \
             --region "${{ env.GCP_REGION }}" --format='value(status.url)')
