@@ -66,6 +66,9 @@ web (Next.js) ↔ api (NestJS) 間の REST API 仕様。
 | PATCH    | `/admin/users/:id`                | ADMIN       | ユーザー無効化           |
 | GET      | `/admin/room-types`               | ADMIN       | 部屋タイプ一覧           |
 | PATCH    | `/admin/room-types/:id`           | ADMIN       | 部屋数 (inventoryCount) 編集 |
+| GET      | `/admin/invitations`              | ADMIN       | 招待中 (未消化・未失効) 一覧 |
+| GET      | `/admin/base-prices`              | ADMIN       | 基準価格一覧 (組合せ表)  |
+| PUT      | `/admin/base-prices`              | ADMIN       | 基準価格の保存 (upsert)  |
 | POST     | `/admin/coefficients/recompute`   | ADMIN       | 係数の再推定             |
 | PUT      | `/admin/coefficients`             | ADMIN       | 係数の手動保存           |
 
@@ -342,6 +345,84 @@ DB 失敗時(503):
 
 注意: `inventoryCount` は稼働率 (`02-pricing-model.md`) の分母に直接使われる。
 変更すると過去月の稼働率にも遡及で影響する(履歴管理は試作段階では不採用)。
+
+---
+
+### `GET /admin/invitations`
+
+招待中 (未消化 かつ 有効期限内) の `Invitation` を新しい順 (`createdAt` 降順) で返す。
+サインインで消化された (`usedAt` 埋まり) 招待や、`expiresAt` を過ぎた招待は含まない。
+
+レスポンス(200):
+
+```json
+{
+  "items": [
+    {
+      "id": 12,
+      "email": "user@example.com",
+      "role": "MEMBER",
+      "invitedByEmail": "admin@example.com",
+      "expiresAt": "2026-05-07T12:00:00Z",
+      "createdAt": "2026-04-30T12:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /admin/base-prices`
+
+基準価格 (`BasePrice`) の組合せ表を返す。`roomTypes` / `plans` の全件と、現存する `BasePrice` 行を一括で返す。
+画面側は `(roomTypeId, planId)` ごとに最新の `effectiveFrom` の行を「現行値」として扱う。
+
+レスポンス(200):
+
+```json
+{
+  "roomTypes": [{ "id": 1, "code": "Asakusa", "name": "Asakusa" }],
+  "plans": [{ "id": 10, "name": "一泊二食", "mealType": "B+D" }],
+  "items": [
+    {
+      "id": 1,
+      "roomTypeId": 1,
+      "planId": 10,
+      "amount": "20000.00",
+      "priceMin": "14000.00",
+      "priceMax": "26000.00",
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": null
+    }
+  ]
+}
+```
+
+---
+
+### `PUT /admin/base-prices`
+
+`(roomTypeId, planId)` 単位で基準価格を保存 (upsert) する。
+試作段階では履歴を持たず、既存行があれば update、なければ `effectiveFrom = 当日 (UTC)` / `effectiveTo = null` で create する (ADR-0011 / 03-data-model.md §BasePrice)。
+
+リクエスト:
+
+```json
+{
+  "roomTypeId": 1,
+  "planId": 10,
+  "amount": "20000",
+  "priceMin": "14000",
+  "priceMax": "26000"
+}
+```
+
+- `amount` / `priceMin` / `priceMax` は Decimal 文字列。`priceMin <= priceMax` 必須 (ADR-0008)。
+- `roomTypeId` / `planId` が存在しない場合は `404 NOT_FOUND`。
+
+レスポンス(200): 更新後の `BasePrice` (上記 `GET /admin/base-prices` の `items` 要素と同形式)。
+
+監査ログ: `BASE_PRICE_UPSERT` を記録(target=basePriceId、payload に変更前後の値)。
 
 ---
 

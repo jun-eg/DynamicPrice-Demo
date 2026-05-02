@@ -45,11 +45,38 @@ interface StoredAuditLog {
   payload: unknown;
 }
 
+interface StoredRoomType {
+  id: number;
+  code: string;
+  name: string;
+}
+
+interface StoredPlan {
+  id: number;
+  name: string;
+  mealType: string | null;
+}
+
+interface StoredBasePrice {
+  id: number;
+  roomTypeId: number;
+  planId: number;
+  amount: string;
+  priceMin: string;
+  priceMax: string;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+}
+
 class FakePrisma {
   users: StoredUser[] = [];
   invitations: StoredInvitation[] = [];
   auditLogs: StoredAuditLog[] = [];
+  roomTypes: StoredRoomType[] = [];
+  plans: StoredPlan[] = [];
+  basePrices: StoredBasePrice[] = [];
   private nextInvitationId = 1;
+  private nextBasePriceId = 1;
 
   user = {
     findMany: vi.fn(async () => {
@@ -104,6 +131,29 @@ class FakePrisma {
         return found ? { id: found.id } : null;
       },
     ),
+    findMany: vi.fn(
+      async (args: {
+        where: { usedAt: null; expiresAt: { gt: Date } };
+      }) => {
+        return this.invitations
+          .filter(
+            (i) =>
+              i.usedAt === null && i.expiresAt.getTime() > args.where.expiresAt.gt.getTime(),
+          )
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .map((i) => ({
+            id: i.id,
+            email: i.email,
+            role: i.role,
+            expiresAt: i.expiresAt,
+            createdAt: i.createdAt,
+            invitedBy:
+              this.users.find((u) => u.id === i.invitedById) != null
+                ? { email: this.users.find((u) => u.id === i.invitedById)!.email }
+                : null,
+          }));
+      },
+    ),
     create: vi.fn(
       async (args: {
         data: {
@@ -151,6 +201,77 @@ class FakePrisma {
         };
         this.auditLogs.push(log);
         return log;
+      },
+    ),
+  };
+
+  roomType = {
+    findMany: vi.fn(async () => this.roomTypes.slice().sort((a, b) => a.id - b.id)),
+    findUnique: vi.fn(async (args: { where: { id: number } }) => {
+      const found = this.roomTypes.find((r) => r.id === args.where.id);
+      return found ? { id: found.id } : null;
+    }),
+  };
+
+  plan = {
+    findMany: vi.fn(async () => this.plans.slice().sort((a, b) => a.id - b.id)),
+    findUnique: vi.fn(async (args: { where: { id: number } }) => {
+      const found = this.plans.find((p) => p.id === args.where.id);
+      return found ? { id: found.id } : null;
+    }),
+  };
+
+  basePrice = {
+    findMany: vi.fn(async () => {
+      return this.basePrices
+        .slice()
+        .sort(
+          (a, b) =>
+            a.roomTypeId - b.roomTypeId ||
+            a.planId - b.planId ||
+            b.effectiveFrom.getTime() - a.effectiveFrom.getTime(),
+        )
+        .map((b) => ({ ...b }));
+    }),
+    findFirst: vi.fn(
+      async (args: { where: { roomTypeId: number; planId: number } }) => {
+        const matched = this.basePrices
+          .filter(
+            (b) =>
+              b.roomTypeId === args.where.roomTypeId && b.planId === args.where.planId,
+          )
+          .sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime());
+        return matched[0] ? { ...matched[0] } : null;
+      },
+    ),
+    update: vi.fn(
+      async (args: {
+        where: { id: number };
+        data: { amount: string; priceMin: string; priceMax: string };
+      }) => {
+        const target = this.basePrices.find((b) => b.id === args.where.id);
+        if (!target) throw new Error('basePrice not found');
+        target.amount = args.data.amount;
+        target.priceMin = args.data.priceMin;
+        target.priceMax = args.data.priceMax;
+        return { ...target };
+      },
+    ),
+    create: vi.fn(
+      async (args: {
+        data: {
+          roomTypeId: number;
+          planId: number;
+          amount: string;
+          priceMin: string;
+          priceMax: string;
+          effectiveFrom: Date;
+          effectiveTo: Date | null;
+        };
+      }) => {
+        const row: StoredBasePrice = { id: this.nextBasePriceId++, ...args.data };
+        this.basePrices.push(row);
+        return { ...row };
       },
     ),
   };
@@ -208,6 +329,9 @@ describe('Admin (e2e)', () => {
     ];
     fakePrisma.invitations = [];
     fakePrisma.auditLogs = [];
+    fakePrisma.roomTypes = [];
+    fakePrisma.plans = [];
+    fakePrisma.basePrices = [];
   });
 
   const adminToken = () =>
@@ -335,6 +459,67 @@ describe('Admin (e2e)', () => {
     expect(fakePrisma.auditLogs.some((l) => l.action === 'USER_INVITE')).toBe(true);
   });
 
+  // -- GET /admin/invitations --------------------------------------------
+  it('ADMIN で GET /admin/invitations は未消化・未失効のみを新しい順で返す', async () => {
+    const now = Date.now();
+    fakePrisma.invitations.push(
+      {
+        id: 1,
+        email: 'pending@example.com',
+        role: 'MEMBER',
+        invitedById: 1,
+        expiresAt: new Date(now + 24 * 60 * 60 * 1000),
+        usedAt: null,
+        createdAt: new Date(now - 60_000),
+      },
+      {
+        id: 2,
+        email: 'used@example.com',
+        role: 'MEMBER',
+        invitedById: 1,
+        expiresAt: new Date(now + 24 * 60 * 60 * 1000),
+        usedAt: new Date(now - 30_000),
+        createdAt: new Date(now - 30_000),
+      },
+      {
+        id: 3,
+        email: 'expired@example.com',
+        role: 'MEMBER',
+        invitedById: 1,
+        expiresAt: new Date(now - 24 * 60 * 60 * 1000),
+        usedAt: null,
+        createdAt: new Date(now - 90_000),
+      },
+      {
+        id: 4,
+        email: 'newer-pending@example.com',
+        role: 'ADMIN',
+        invitedById: 1,
+        expiresAt: new Date(now + 24 * 60 * 60 * 1000),
+        usedAt: null,
+        createdAt: new Date(now - 10_000),
+      },
+    );
+
+    const res = await request(server)
+      .get('/admin/invitations')
+      .set('Authorization', `Bearer ${adminToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(2);
+    // createdAt 降順: newer-pending (createdAt -10s) → pending (createdAt -60s)
+    expect(res.body.items[0].email).toBe('newer-pending@example.com');
+    expect(res.body.items[1].email).toBe('pending@example.com');
+    expect(res.body.items[0].invitedByEmail).toBe('admin@example.com');
+  });
+
+  it('MEMBER で GET /admin/invitations は 403 FORBIDDEN', async () => {
+    const res = await request(server)
+      .get('/admin/invitations')
+      .set('Authorization', `Bearer ${memberToken()}`);
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('email/role が不正なら 400 VALIDATION_ERROR', async () => {
     const badEmail = await request(server)
       .post('/admin/invitations')
@@ -433,5 +618,136 @@ describe('Admin (e2e)', () => {
       .send({ status: 'DISABLED' });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  // -- /admin/base-prices ----------------------------------------------------
+  describe('GET/PUT /admin/base-prices', () => {
+    beforeEach(() => {
+      fakePrisma.roomTypes = [
+        { id: 1, code: 'Asakusa', name: 'Asakusa' },
+        { id: 2, code: 'Sugi', name: 'Sugi' },
+      ];
+      fakePrisma.plans = [
+        { id: 10, name: '一泊二食', mealType: 'B+D' },
+        { id: 11, name: '素泊まり', mealType: null },
+      ];
+    });
+
+    it('MEMBER で GET /admin/base-prices は 403 FORBIDDEN', async () => {
+      const res = await request(server)
+        .get('/admin/base-prices')
+        .set('Authorization', `Bearer ${memberToken()}`);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('ADMIN で GET /admin/base-prices は roomTypes / plans / items を返す', async () => {
+      fakePrisma.basePrices.push({
+        id: 1,
+        roomTypeId: 1,
+        planId: 10,
+        amount: '20000.00',
+        priceMin: '14000.00',
+        priceMax: '26000.00',
+        effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+        effectiveTo: null,
+      });
+      const res = await request(server)
+        .get('/admin/base-prices')
+        .set('Authorization', `Bearer ${adminToken()}`);
+      expect(res.status).toBe(200);
+      expect(res.body.roomTypes).toHaveLength(2);
+      expect(res.body.plans).toHaveLength(2);
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0]).toEqual({
+        id: 1,
+        roomTypeId: 1,
+        planId: 10,
+        amount: '20000.00',
+        priceMin: '14000.00',
+        priceMax: '26000.00',
+        effectiveFrom: '2026-01-01',
+        effectiveTo: null,
+      });
+    });
+
+    it('ADMIN で PUT /admin/base-prices は新規作成 + AuditLog BASE_PRICE_UPSERT', async () => {
+      const res = await request(server)
+        .put('/admin/base-prices')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send({
+          roomTypeId: 1,
+          planId: 10,
+          amount: '20000',
+          priceMin: '14000',
+          priceMax: '26000',
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.amount).toBe('20000.00');
+      expect(res.body.priceMin).toBe('14000.00');
+      expect(res.body.priceMax).toBe('26000.00');
+      expect(res.body.effectiveTo).toBeNull();
+      expect(fakePrisma.basePrices).toHaveLength(1);
+      const audit = fakePrisma.auditLogs.find((l) => l.action === 'BASE_PRICE_UPSERT');
+      expect(audit).toBeDefined();
+      expect(audit!.target).toBe(String(fakePrisma.basePrices[0]!.id));
+    });
+
+    it('既存 (RoomType, Plan) を再保存すると update され、行は増えない', async () => {
+      fakePrisma.basePrices.push({
+        id: 5,
+        roomTypeId: 1,
+        planId: 10,
+        amount: '20000.00',
+        priceMin: '14000.00',
+        priceMax: '26000.00',
+        effectiveFrom: new Date('2026-01-01T00:00:00Z'),
+        effectiveTo: null,
+      });
+      const res = await request(server)
+        .put('/admin/base-prices')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send({
+          roomTypeId: 1,
+          planId: 10,
+          amount: '21000',
+          priceMin: '15000',
+          priceMax: '27000',
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(5);
+      expect(res.body.amount).toBe('21000.00');
+      expect(fakePrisma.basePrices).toHaveLength(1);
+    });
+
+    it('priceMin > priceMax なら 400 VALIDATION_ERROR', async () => {
+      const res = await request(server)
+        .put('/admin/base-prices')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send({
+          roomTypeId: 1,
+          planId: 10,
+          amount: '20000',
+          priceMin: '30000',
+          priceMax: '25000',
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('存在しない RoomType は 404 NOT_FOUND', async () => {
+      const res = await request(server)
+        .put('/admin/base-prices')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send({
+          roomTypeId: 999,
+          planId: 10,
+          amount: '20000',
+          priceMin: '14000',
+          priceMax: '26000',
+        });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    });
   });
 });

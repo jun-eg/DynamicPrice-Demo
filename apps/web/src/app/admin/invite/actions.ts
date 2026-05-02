@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { AdminInvitationCreateRequest, AdminInvitationCreateResponse } from '@app/shared';
@@ -34,6 +35,7 @@ export async function inviteUser(
       { id: session.user.userId, email: session.user.email ?? '', role: session.user.role },
       { method: 'POST', body: JSON.stringify(body) },
     );
+    revalidatePath('/admin/invite');
     return { status: 'success', data };
   } catch (e) {
     if (e instanceof ApiClientError) {

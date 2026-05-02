@@ -3,7 +3,7 @@
 // - 数値はすべて文字列 (ADR-0006)
 // - 月跨ぎ予約は checkInDate の月にまとめて算入 (02-pricing-model.md)
 // - cancelDate IS NULL の予約のみが対象
-// - バリデーション失敗で 400 VALIDATION_ERROR (YYYY-MM 形式 / from > to / 期間上限超過)
+// - バリデーション失敗で 400 VALIDATION_ERROR (YYYY-MM 形式 / from > to)
 // - 401 (JWT 無し)
 // PrismaService はインメモリのモックに差し替えて DB 非依存で実行する。
 
@@ -18,7 +18,6 @@ import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter
 import { PrismaModule } from '../src/prisma/prisma.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { StatsModule } from '../src/stats/stats.module.js';
-import { MAX_RANGE_MONTHS } from '../src/stats/stats.dto.js';
 
 const TEST_SECRET = 'e2e-stats-secret';
 
@@ -149,13 +148,14 @@ describe('Stats (e2e)', () => {
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
 
-    it(`期間上限 ${MAX_RANGE_MONTHS} ヶ月を超えると 400 VALIDATION_ERROR`, async () => {
-      // 2024-01 .. 2026-01 = 25 ヶ月
+    it('24 ヶ月を超える長期間でも 200 を返す (期間上限は撤廃済み)', async () => {
+      // 2024-01 .. 2026-01 = 25 ヶ月。inventoryCount=0 でも 200 が返り月数分のレコードが揃うことを確認。
+      fakePrisma.inventoryCounts = [];
       const res = await request(server)
         .get('/stats/occupancy?from=2024-01&to=2026-01')
         .set('Authorization', `Bearer ${memberToken()}`);
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.status).toBe(200);
+      expect(res.body.items).toHaveLength(25);
     });
   });
 
