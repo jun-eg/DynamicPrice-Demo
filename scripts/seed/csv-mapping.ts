@@ -17,7 +17,8 @@ export const CSV_COLUMN = {
   // CSVに部屋タイプコード列がないため名称をコードとして使用する
   roomTypeCode: '部屋タイプ名称',
   roomTypeName: '部屋タイプ名称',
-  planCode: '商品プランコード',
+  // Plan は「商品プラン名称」を自然キーにする (issue #55, #56 / ADR-0010)。
+  // 元 CSV の「商品プランコード」は同 name 多コード / 同 code 多 name の双方向問題があり捨てる。
   planName: '商品プラン名称',
   mealType: '食事',
   adults: '大人人数計',
@@ -40,7 +41,6 @@ export interface MappedRow {
   bookingChannel: string | null;
   roomTypeCode: string;
   roomTypeName: string;
-  planCode: string;
   planName: string;
   mealType: string | null;
   adults: number;
@@ -131,7 +131,6 @@ export function mapRow(row: Record<string, string>): MappedRow {
   const bookingChannel = pickOptional(row, CSV_COLUMN.bookingChannel);
   const roomTypeCode = pickRequired(row, CSV_COLUMN.roomTypeCode);
   const roomTypeName = pickRequired(row, CSV_COLUMN.roomTypeName);
-  const planCode = pickRequired(row, CSV_COLUMN.planCode);
   const planName = pickRequired(row, CSV_COLUMN.planName);
   const mealType = pickOptional(row, CSV_COLUMN.mealType);
   const adults = parseIntRequired(pickRequired(row, CSV_COLUMN.adults), CSV_COLUMN.adults);
@@ -156,7 +155,6 @@ export function mapRow(row: Record<string, string>): MappedRow {
     bookingChannel,
     roomTypeCode,
     roomTypeName,
-    planCode,
     planName,
     mealType,
     adults,

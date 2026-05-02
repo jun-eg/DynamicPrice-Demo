@@ -41,19 +41,22 @@ async function ensureRoomType(row: MappedRow, cache: Map<string, number>): Promi
 }
 
 async function ensurePlan(row: MappedRow, cache: Map<string, number>): Promise<number> {
-  const cached = cache.get(row.planCode);
+  // Plan は商品プラン名称を自然キーにする (issue #55, #56 / ADR-0010)。
+  // 商品プランコードは捨てる: 同 name に複数 code、同 code に複数 name の双方向問題があり
+  // 業務単位の集約に使えないため。
+  const cached = cache.get(row.planName);
   if (cached !== undefined) return cached;
 
-  const existing = await prisma.plan.findUnique({ where: { code: row.planCode } });
+  const existing = await prisma.plan.findUnique({ where: { name: row.planName } });
   if (existing) {
-    cache.set(row.planCode, existing.id);
+    cache.set(row.planName, existing.id);
     return existing.id;
   }
-  console.warn(`[reservations] 未登録の Plan を仮投入: code=${row.planCode} name=${row.planName}`);
+  console.warn(`[reservations] 未登録の Plan を仮投入: name=${row.planName}`);
   const created = await prisma.plan.create({
-    data: { code: row.planCode, name: row.planName, mealType: row.mealType },
+    data: { name: row.planName, mealType: row.mealType },
   });
-  cache.set(row.planCode, created.id);
+  cache.set(row.planName, created.id);
   return created.id;
 }
 

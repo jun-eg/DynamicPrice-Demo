@@ -16,14 +16,15 @@ export interface RoomTypeSeed {
 }
 
 export interface PlanSeed {
-  code: string;
+  // Plan の自然キーは name (issue #55, #56 / ADR-0010)。
   name: string;
   mealType: string | null;
 }
 
 export interface BasePriceSeed {
   roomTypeCode: string;
-  planCode: string;
+  // BasePrice → Plan は name で同定する (Plan の自然キーが name のため)。
+  planName: string;
   amount: number;
   priceMin: number;
   priceMax: number;
@@ -47,16 +48,16 @@ export const ROOM_TYPES: readonly RoomTypeSeed[] = [
 ];
 
 export const PLANS: readonly PlanSeed[] = [
-  { code: 'STAY_RO', name: '素泊まりプラン', mealType: '素泊まり' },
-  { code: 'STAY_BB', name: '朝食付きプラン', mealType: '朝食付き' },
-  { code: 'STAY_HB', name: '1泊2食プラン', mealType: '一泊二食' },
+  { name: '素泊まりプラン', mealType: '素泊まり' },
+  { name: '朝食付きプラン', mealType: '朝食付き' },
+  { name: '1泊2食プラン', mealType: '一泊二食' },
 ];
 
 // 上限・下限は基準価格 ±30%(02-pricing-model.md レイヤー1 の安全弁)
 export const BASE_PRICES: readonly BasePriceSeed[] = [
   {
     roomTypeCode: 'STD',
-    planCode: 'STAY_RO',
+    planName: '素泊まりプラン',
     amount: 12000,
     priceMin: 8400,
     priceMax: 15600,
@@ -65,7 +66,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'STD',
-    planCode: 'STAY_BB',
+    planName: '朝食付きプラン',
     amount: 14000,
     priceMin: 9800,
     priceMax: 18200,
@@ -74,7 +75,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'STD',
-    planCode: 'STAY_HB',
+    planName: '1泊2食プラン',
     amount: 18000,
     priceMin: 12600,
     priceMax: 23400,
@@ -83,7 +84,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'DLX',
-    planCode: 'STAY_RO',
+    planName: '素泊まりプラン',
     amount: 18000,
     priceMin: 12600,
     priceMax: 23400,
@@ -92,7 +93,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'DLX',
-    planCode: 'STAY_BB',
+    planName: '朝食付きプラン',
     amount: 20000,
     priceMin: 14000,
     priceMax: 26000,
@@ -101,7 +102,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'DLX',
-    planCode: 'STAY_HB',
+    planName: '1泊2食プラン',
     amount: 25000,
     priceMin: 17500,
     priceMax: 32500,
@@ -110,7 +111,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'SUI',
-    planCode: 'STAY_RO',
+    planName: '素泊まりプラン',
     amount: 30000,
     priceMin: 21000,
     priceMax: 39000,
@@ -119,7 +120,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'SUI',
-    planCode: 'STAY_BB',
+    planName: '朝食付きプラン',
     amount: 33000,
     priceMin: 23100,
     priceMax: 42900,
@@ -128,7 +129,7 @@ export const BASE_PRICES: readonly BasePriceSeed[] = [
   },
   {
     roomTypeCode: 'SUI',
-    planCode: 'STAY_HB',
+    planName: '1泊2食プラン',
     amount: 40000,
     priceMin: 28000,
     priceMax: 52000,
