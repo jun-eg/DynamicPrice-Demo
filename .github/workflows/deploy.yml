@@ -140,20 +140,41 @@ jobs:
           docker push "${{ steps.tags.outputs.web_image }}"
 
       # --- Cloud Run deploy -------------------------------------------------
-      # Secret Manager / Cloud SQL 接続などの実行時設定は cicd-setup.md の手順で
-      # サービス側に紐付け済みである前提。ここでは image だけ差し替える。
+      # --add-cloudsql-instances / --set-secrets / --set-env-vars を毎回渡す。
+      # gcloud run deploy は冪等なのでサービス新規作成・更新どちらも同じコマンドで動く。
+      # これにより初回デプロイもローカル手動作業なしに CI/CD だけで完結する。
       - name: Deploy api to Cloud Run
+        id: deploy-api
         run: |
           gcloud run deploy "${{ env.API_SERVICE }}" \
             --image "${{ steps.tags.outputs.api_image }}" \
             --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances "${{ secrets.CLOUD_SQL_INSTANCE }}" \
+            --set-env-vars "NODE_ENV=production" \
+            --set-secrets "DATABASE_URL=database-url:latest,AUTH_SECRET=auth-secret:latest" \
             --quiet
+          API_URL=$(gcloud run services describe "${{ env.API_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          echo "url=${API_URL}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy web to Cloud Run
         run: |
           gcloud run deploy "${{ env.WEB_SERVICE }}" \
             --image "${{ steps.tags.outputs.web_image }}" \
             --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "NODE_ENV=production,API_BASE_URL=${{ steps.deploy-api.outputs.url }}" \
+            --set-secrets "AUTH_SECRET=auth-secret:latest,GOOGLE_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_CLIENT_SECRET=google-oauth-client-secret:latest" \
+            --quiet
+          WEB_URL=$(gcloud run services describe "${{ env.WEB_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          # AUTH_URL はサービス自身の URL。初回・更新どちらも毎回セットする。
+          gcloud run services update "${{ env.WEB_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --update-env-vars "AUTH_URL=${WEB_URL}" \
             --quiet
 
       # --- Healthcheck ------------------------------------------------------
