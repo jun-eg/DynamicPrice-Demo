@@ -13,7 +13,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="ja">
-      <body style={{ margin: 0, fontFamily: 'sans-serif' }}>
+      <body style={{ margin: 0, fontFamily: 'sans-serif', minHeight: '100vh', background: '#f8fafc' }}>
         {session?.user ? (
           <AppShell role={session.user.role}>{children}</AppShell>
         ) : (

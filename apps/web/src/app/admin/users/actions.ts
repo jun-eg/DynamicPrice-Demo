@@ -27,6 +27,6 @@ export async function disableUser(userId: number): Promise<DisableUserState> {
     if (e instanceof ApiClientError) {
       return { status: 'error', message: e.message };
     }
-    return { status: 'error', message: 'ユーザーの無効化に失敗しました' };
+    throw e;
   }
 }

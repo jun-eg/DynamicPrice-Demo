@@ -1,6 +1,8 @@
 // NestJS APIへのfetch一元管理。
 // JWT発行はサーバー側のみで実行し、クライアントへの露出を防ぐ (ADR-0006)。
+// 401 を受け取った場合はセッション切れとみなし /signin に誘導する (issue #44)。
 
+import { redirect } from 'next/navigation';
 import type { ApiError, ApiErrorCode } from '@app/shared';
 import { issueApiToken, type ApiTokenSubject } from './api-token';
 
@@ -31,6 +33,9 @@ export async function apiFetch<T>(
     },
     cache: 'no-store',
   });
+  if (res.status === 401) {
+    redirect('/signin');
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as Partial<ApiError>;
     const code: ApiErrorCode = body.error?.code ?? 'INTERNAL_ERROR';

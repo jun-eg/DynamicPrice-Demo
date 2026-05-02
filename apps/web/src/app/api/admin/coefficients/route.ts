@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { AdminCoefficientsSaveRequest, AdminCoefficientsSaveResponse } from '@app/shared';
 
 export async function PUT(request: Request): Promise<NextResponse> {
@@ -22,7 +22,9 @@ export async function PUT(request: Request): Promise<NextResponse> {
     });
     return NextResponse.json(result);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Internal error';
-    return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: msg } }, { status: 500 });
+    if (e instanceof ApiClientError) {
+      return NextResponse.json({ error: { code: e.code, message: e.message } }, { status: 500 });
+    }
+    throw e;
   }
 }
