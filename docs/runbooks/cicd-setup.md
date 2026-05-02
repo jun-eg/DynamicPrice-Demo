@@ -9,24 +9,32 @@ GCP 側と GitHub 側で一度だけ行う設定をまとめる。
 ## 0. 前提
 
 - `gcloud` CLI がローカルにインストール済み・`gcloud auth login` 済み
+- `docker` CLI がローカルにインストール済み（Step 7 のみ必要）
+- `gh` CLI がインストール済み・`gh auth login` 済み（Step 8 のみ必要）
 - リポジトリは GitHub 上に存在し、`main` への push 制限を `develop` 側へ流す Branch Protection を入れる予定
 - Cloud Run と Cloud SQL は ADR-0002 で `asia-northeast1` を採用
 
-以降の例では下記の値を使う。実値に置き換えること。
+### セットアップスクリプトの使い方
 
-| 変数                | 例                                             |
-| ------------------- | ---------------------------------------------- |
-| `PROJECT_ID`        | `dynamic-price-demo`                           |
-| `PROJECT_NUMBER`    | `123456789012` (Cloud Console のホームに出る)  |
-| `REGION`            | `asia-northeast1`                              |
-| `GITHUB_OWNER`      | `your-github-username-or-org`                  |
-| `GITHUB_REPO`       | `dynamic-price-demo`                           |
-| `SQL_INSTANCE_NAME` | `dynamic-price-db`                             |
-| `SQL_INSTANCE_CONN` | `${PROJECT_ID}:${REGION}:${SQL_INSTANCE_NAME}` |
-| `ARTIFACT_REPO`     | `dynamic-price`                                |
-| `DEPLOYER_SA`       | `github-actions-deployer`                      |
-| `WIF_POOL`          | `github-pool`                                  |
-| `WIF_PROVIDER`      | `github-provider`                              |
+各ステップは `scripts/gcp-setup/setup.sh` でまとめて実行できる。
+
+```bash
+# 1. 変数ファイルを用意する
+cp scripts/gcp-setup/.env.example scripts/gcp-setup/.env
+# .env を開いて実値を入力する (.env は .gitignore 対象)
+
+# 2. 全ステップを一括実行
+./scripts/gcp-setup/setup.sh all
+
+# または個別実行
+./scripts/gcp-setup/setup.sh step1   # API 有効化のみ
+./scripts/gcp-setup/setup.sh step4   # Secret Manager 投入のみ
+```
+
+シークレット値（DB パスワード・OAuth クレデンシャル・DB 接続文字列）は `gcp.env` に書かず、
+スクリプト実行中に対話形式で入力を求める。
+
+以降のセクションはスクリプトの内容を手順として記載したもの（手動実行・確認用）。
 
 ## 1. GCP プロジェクトの初期化
 
@@ -177,32 +185,11 @@ projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL}/pr
 
 ## 7. Cloud Run サービスの初回作成
 
-`.github/workflows/deploy.yml` は **既存サービスの image を差し替える** 想定なので、
-最初の 1 回だけは手動で `gcloud run deploy` を流して Secret 紐付け・Cloud SQL 接続を入れる。
+**手動作業は不要。** `deploy.yml` の Cloud Run deploy ステップに
+`--add-cloudsql-instances` / `--set-secrets` / `--set-env-vars` が含まれているため、
+`main` への初回マージ時に GitHub Actions がサービスの新規作成まで自動で行う。
 
-```bash
-# api
-gcloud run deploy api \
-  --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/api:bootstrap" \
-  --region="${REGION}" \
-  --platform=managed \
-  --allow-unauthenticated \
-  --add-cloudsql-instances="${SQL_INSTANCE_CONN}" \
-  --set-env-vars=NODE_ENV=production \
-  --set-secrets=DATABASE_URL=database-url:latest,AUTH_SECRET=auth-secret:latest
-
-# web
-gcloud run deploy web \
-  --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/web:bootstrap" \
-  --region="${REGION}" \
-  --platform=managed \
-  --allow-unauthenticated \
-  --set-env-vars=NODE_ENV=production,API_BASE_URL=<api の Cloud Run URL>,AUTH_URL=<web の Cloud Run URL> \
-  --set-secrets=AUTH_SECRET=auth-secret:latest,GOOGLE_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_CLIENT_SECRET=google-oauth-client-secret:latest
-```
-
-`bootstrap` タグの image は最初は無いので、ローカルから `docker build && docker push` で 1 回だけ用意する
-(以降は GitHub Actions が `${GITHUB_SHA}` タグで上書きする)。
+Step 8 (GitHub Secrets 登録) を済ませて、`main` への最初の PR をマージすれば CI/CD が起動する。
 
 ## 8. GitHub Repository Secrets を登録
 
