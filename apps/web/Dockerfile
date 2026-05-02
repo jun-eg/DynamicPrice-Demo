@@ -64,8 +64,7 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/packages/db ./packages/db
 COPY --from=builder /app/packages/shared ./packages/shared
 
-ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-EXPOSE 3000
+EXPOSE 8080
 
 CMD ["npm", "run", "--workspace", "@app/web", "start"]
