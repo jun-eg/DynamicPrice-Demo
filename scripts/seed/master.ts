@@ -74,12 +74,14 @@ async function upsertAdminUser(): Promise<void> {
     throw new Error('SEED_ADMIN_EMAIL が未設定です。.env を確認してください。');
   }
 
+  // 既存ユーザーは触らない: 運用で role/status を変えても毎デプロイで巻き戻さないため。
+  // この seed は「初期 ADMIN がいない状態で 1 件作る」ことだけを保証する。
   await prisma.user.upsert({
     where: { email },
-    update: { role: 'ADMIN', status: 'ACTIVE' },
+    update: {},
     create: { email, role: 'ADMIN', status: 'ACTIVE' },
   });
-  console.log(`[master] ADMIN user upserted: ${email}`);
+  console.log(`[master] ADMIN user ensured: ${email}`);
 }
 
 async function main(): Promise<void> {

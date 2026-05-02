@@ -202,8 +202,15 @@ GitHub の Settings → Secrets and variables → Actions で登録する。
 | `WIF_PROVIDER`        | `projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL}/providers/${WIF_PROVIDER}` |
 | `WIF_SERVICE_ACCOUNT` | `${DEPLOYER_EMAIL}`                                                                                       |
 | `CLOUD_SQL_INSTANCE`  | `${SQL_INSTANCE_CONN}` (例: `dynamic-price-demo:asia-northeast1:dynamic-price-db`)                        |
+| `SEED_ADMIN_EMAIL`    | 初期 ADMIN ユーザーのメールアドレス (例: `you@example.com`)                                                |
 
 これらは ID 相当(漏れても直接の被害は限定的)だが、慣例として Secrets に格納する。
+
+`SEED_ADMIN_EMAIL` は **初回デプロイ前に必ず設定**する。未設定だと `db:seed-master` が
+`SEED_ADMIN_EMAIL が未設定です` で失敗し、デプロイ全体が中断する。
+2 回目以降は `User` テーブルに該当 email が存在すれば update は走らない (admin upsert は
+`update: {}` で既存値を保護する)。運用で role/status を変更した admin がデプロイで
+巻き戻される心配はない。
 
 ## 9. Branch Protection と Required Checks
 
