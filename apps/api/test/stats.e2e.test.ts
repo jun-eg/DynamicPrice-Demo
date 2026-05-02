@@ -24,6 +24,7 @@ const TEST_SECRET = 'e2e-stats-secret';
 
 interface StoredReservation {
   nights: number;
+  roomCount: number;
   totalAmount: { toString(): string };
   checkInDate: Date;
   bookedDate: Date;
@@ -37,6 +38,7 @@ interface ReservationFindManyArgs {
   };
   select: {
     nights?: true;
+    roomCount?: true;
     totalAmount?: true;
     checkInDate?: true;
     bookedDate?: true;
@@ -59,6 +61,7 @@ class FakePrisma {
         .map((r) => {
           const out: Record<string, unknown> = {};
           if (sel.nights) out.nights = r.nights;
+          if (sel.roomCount) out.roomCount = r.roomCount;
           if (sel.totalAmount) out.totalAmount = r.totalAmount;
           if (sel.checkInDate) out.checkInDate = r.checkInDate;
           if (sel.bookedDate) out.bookedDate = r.bookedDate;
@@ -163,6 +166,7 @@ describe('Stats (e2e)', () => {
       fakePrisma.reservations = [
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '10000',
           checkInDate: date('2026-05-01'),
           bookedDate: date('2026-04-25'),
@@ -170,6 +174,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 3,
+          roomCount: 1,
           totalAmount: '60000',
           // 5 月末チェックインの 3 連泊 → 5 月にまるごと算入 (02-pricing-model.md)
           checkInDate: date('2026-05-31'),
@@ -202,6 +207,7 @@ describe('Stats (e2e)', () => {
       fakePrisma.reservations = [
         {
           nights: 2,
+          roomCount: 1,
           totalAmount: '20000',
           checkInDate: date('2026-05-10'),
           bookedDate: date('2026-05-01'),
@@ -209,6 +215,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 5,
+          roomCount: 1,
           totalAmount: '50000',
           checkInDate: date('2026-05-20'),
           bookedDate: date('2026-05-01'),
@@ -230,6 +237,7 @@ describe('Stats (e2e)', () => {
       fakePrisma.reservations = [
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '20000',
           checkInDate: date('2026-05-01'),
           bookedDate: date('2026-04-25'),
@@ -237,6 +245,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 3,
+          roomCount: 1,
           totalAmount: '60000',
           checkInDate: date('2026-05-31'),
           bookedDate: date('2026-05-01'),
@@ -244,6 +253,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 2,
+          roomCount: 1,
           totalAmount: '30000',
           checkInDate: date('2026-06-15'),
           bookedDate: date('2026-06-01'),
@@ -277,6 +287,7 @@ describe('Stats (e2e)', () => {
       fakePrisma.reservations = [
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '10000',
           checkInDate: date('2026-05-02'),
           bookedDate: date('2026-05-01'), // 1 → 0-3
@@ -284,6 +295,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '10000',
           checkInDate: date('2026-05-05'),
           bookedDate: date('2026-05-01'), // 4 → 4-7
@@ -291,6 +303,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '10000',
           checkInDate: date('2026-05-08'),
           bookedDate: date('2026-05-01'), // 7 → 4-7
@@ -298,6 +311,7 @@ describe('Stats (e2e)', () => {
         },
         {
           nights: 1,
+          roomCount: 1,
           totalAmount: '10000',
           checkInDate: date('2026-05-15'),
           bookedDate: date('2026-05-01'), // 14 → 8-14
