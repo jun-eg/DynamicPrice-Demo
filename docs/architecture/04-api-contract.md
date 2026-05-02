@@ -64,6 +64,8 @@ web (Next.js) ↔ api (NestJS) 間の REST API 仕様。
 | POST     | `/admin/invitations`              | ADMIN       | 招待発行                 |
 | GET      | `/admin/users`                    | ADMIN       | ユーザー一覧             |
 | PATCH    | `/admin/users/:id`                | ADMIN       | ユーザー無効化           |
+| GET      | `/admin/room-types`               | ADMIN       | 部屋タイプ一覧           |
+| PATCH    | `/admin/room-types/:id`           | ADMIN       | 部屋数 (inventoryCount) 編集 |
 | POST     | `/admin/coefficients/recompute`   | ADMIN       | 係数の再推定             |
 | PUT      | `/admin/coefficients`             | ADMIN       | 係数の手動保存           |
 
@@ -298,6 +300,48 @@ DB 失敗時(503):
 レスポンス(200): 更新後の User オブジェクト(上記一覧の要素と同形式)。
 
 監査ログ: `USER_DISABLE` を記録(target=userId)。
+
+---
+
+### `GET /admin/room-types`
+
+部屋タイプ一覧 (issue #59 §D)。
+
+レスポンス(200):
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "code": "Asakusa",
+      "name": "Asakusa",
+      "capacity": null,
+      "inventoryCount": 1
+    }
+  ]
+}
+```
+
+---
+
+### `PATCH /admin/room-types/:id`
+
+部屋数 (`inventoryCount`) を編集する。`name` / `code` / `capacity` は対象外。
+追加・削除も不可(編集のみ)。
+
+リクエスト:
+
+```json
+{ "inventoryCount": 2 }
+```
+
+レスポンス(200): 更新後の RoomType オブジェクト(上記一覧の要素と同形式)。
+
+監査ログ: `ROOM_TYPE_INVENTORY_UPDATE` を記録(target=roomTypeId、payload に変更前後の値)。
+
+注意: `inventoryCount` は稼働率 (`02-pricing-model.md`) の分母に直接使われる。
+変更すると過去月の稼働率にも遡及で影響する(履歴管理は試作段階では不採用)。
 
 ---
 

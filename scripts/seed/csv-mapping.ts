@@ -12,6 +12,7 @@ export const CSV_COLUMN = {
   checkInDate: 'チェックイン日',
   checkOutDate: 'チェックアウト日',
   nights: '泊数',
+  roomCount: '室数',
   bookingChannel: '予約サイト名称',
   // CSVに部屋タイプコード列がないため名称をコードとして使用する
   roomTypeCode: '部屋タイプ名称',
@@ -35,6 +36,7 @@ export interface MappedRow {
   checkInDate: Date;
   checkOutDate: Date;
   nights: number;
+  roomCount: number;
   bookingChannel: string | null;
   roomTypeCode: string;
   roomTypeName: string;
@@ -124,6 +126,8 @@ export function mapRow(row: Record<string, string>): MappedRow {
     CSV_COLUMN.checkOutDate,
   );
   const nights = parseIntRequired(pickRequired(row, CSV_COLUMN.nights), CSV_COLUMN.nights);
+  // 室数は CSV にあれば使用、欠落・不正なら 1 (issue #59 §A)。
+  const roomCount = parseIntOptional(pickOptional(row, CSV_COLUMN.roomCount), 1);
   const bookingChannel = pickOptional(row, CSV_COLUMN.bookingChannel);
   const roomTypeCode = pickRequired(row, CSV_COLUMN.roomTypeCode);
   const roomTypeName = pickRequired(row, CSV_COLUMN.roomTypeName);
@@ -148,6 +152,7 @@ export function mapRow(row: Record<string, string>): MappedRow {
     checkInDate,
     checkOutDate,
     nights,
+    roomCount,
     bookingChannel,
     roomTypeCode,
     roomTypeName,

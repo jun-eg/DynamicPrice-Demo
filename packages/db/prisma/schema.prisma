@@ -58,6 +58,8 @@ model Reservation {
   checkInDate     DateTime  @db.Date
   checkOutDate    DateTime  @db.Date
   nights          Int
+  // CSV「室数」列。1 行 = 1 室の暗黙前提を排除し、複数室予約を集計に正しく反映する (issue #59)。
+  roomCount       Int       @default(1)
   bookingChannel  String?
   roomTypeId      Int
   planId          Int

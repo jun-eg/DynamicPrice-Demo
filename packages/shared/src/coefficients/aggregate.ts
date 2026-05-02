@@ -1,5 +1,5 @@
 // 係数推定の純関数 (ADR-0007 §各係数の式)。
-// - 1泊単価 = totalAmount / nights
+// - 1泊単価 = totalAmount / (nights × roomCount) ※ issue #59 で複数室予約に対応
 // - 各係数 = avg(1泊単価 | キー) / avg(1泊単価, 全期間)
 // - サンプル数 < MIN_SAMPLE_SIZE は value=1.0, fallback=true
 // 期間フィルタ・キャンセル除外は呼び出し側 (DB クエリ) の責務。
@@ -19,6 +19,7 @@ import {
 export interface CoefficientInput {
   totalAmount: Decimal;
   nights: number;
+  roomCount: number;
   checkInDate: Date;
   bookedDate: Date;
 }
@@ -45,11 +46,11 @@ export function aggregateCoefficients(
 ): AggregatedCoefficient[] {
   const minSampleSize = options.minSampleSize ?? MIN_SAMPLE_SIZE;
 
-  // nights<=0 は 1泊単価が計算できないので除外する (データ不正の防御)。
+  // nights<=0 / roomCount<=0 は 1泊単価が計算できないので除外する (データ不正の防御)。
   const indexed = reservations
-    .filter((r) => r.nights > 0)
+    .filter((r) => r.nights > 0 && r.roomCount > 0)
     .map((r) => ({
-      unitPrice: r.totalAmount.div(r.nights),
+      unitPrice: r.totalAmount.div(r.nights * r.roomCount),
       season: seasonKeyOf(r.checkInDate),
       dayOfWeek: dayOfWeekKeyOf(r.checkInDate),
       leadTime: leadTimeBin(r.checkInDate, r.bookedDate),

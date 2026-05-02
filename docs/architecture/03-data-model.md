@@ -50,6 +50,7 @@
 | `checkInDate`     | date       | チェックイン日                             |
 | `checkOutDate`    | date       | チェックアウト日                           |
 | `nights`          | int        | 泊数                                       |
+| `roomCount`       | int        | 室数(CSV「室数」列、デフォルト 1)。ADR-0009 |
 | `bookingChannel`  | string?    | 予約サイト名称(楽天 / じゃらん / 公式...) |
 | `roomTypeId`      | int (FK)   | → `RoomType`                               |
 | `planId`          | int (FK)   | → `Plan`                                   |
@@ -82,7 +83,7 @@
 | `code`            | string   | UNIQUE。元CSVの分類に対応                   |
 | `name`            | string   | 表示名                                      |
 | `capacity`        | int?     | 定員                                        |
-| `inventoryCount`  | int      | 部屋数。稼働率の分母に使う(`02-pricing-model.md`) |
+| `inventoryCount`  | int      | 部屋数。稼働率の分母に使う(`02-pricing-model.md`)。Web 管理画面 `/admin/room-types` から ADMIN が編集可、履歴管理なし(ADR-0009) |
 
 ### `Plan` — プラン・マスター
 

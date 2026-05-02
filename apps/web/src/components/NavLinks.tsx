@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/coefficients', label: '係数', adminOnly: false },
   { href: '/admin/invite', label: '招待', adminOnly: true },
   { href: '/admin/users', label: 'ユーザー管理', adminOnly: true },
+  { href: '/admin/room-types', label: '部屋タイプ', adminOnly: true },
 ];
 
 export default function NavLinks({ role }: NavLinksProps) {

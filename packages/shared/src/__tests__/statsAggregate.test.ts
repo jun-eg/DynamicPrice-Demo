@@ -62,9 +62,9 @@ describe('aggregateOccupancy', () => {
   it('checkInDate の月で集計する (連泊は丸ごと checkInDate の月)', () => {
     // 5 月 31 日に 3 連泊チェックイン → 6 月分には算入しない (02-pricing-model.md)
     const reservations = [
-      { nights: 3, checkInDate: date('2026-05-31') },
-      { nights: 1, checkInDate: date('2026-05-01') },
-      { nights: 2, checkInDate: date('2026-06-15') },
+      { nights: 3, roomCount: 1, checkInDate: date('2026-05-31') },
+      { nights: 1, roomCount: 1, checkInDate: date('2026-05-01') },
+      { nights: 2, roomCount: 1, checkInDate: date('2026-06-15') },
     ];
     const result = aggregateOccupancy(reservations, 10, ['2026-05', '2026-06']);
 
@@ -79,14 +79,24 @@ describe('aggregateOccupancy', () => {
     expect(june.totalRoomNights).toBe(10 * 30); // 6 月は 30 日
   });
 
+  it('roomCount > 1 の予約は nights × roomCount で分子に反映する (issue #59)', () => {
+    // 5 月: 1 泊 × 2 室 + 3 泊 × 1 室 = 5
+    const reservations = [
+      { nights: 1, roomCount: 2, checkInDate: date('2026-05-01') },
+      { nights: 3, roomCount: 1, checkInDate: date('2026-05-10') },
+    ];
+    const result = aggregateOccupancy(reservations, 10, ['2026-05']);
+    expect(result[0]!.soldRoomNights).toBe(5);
+  });
+
   it('丸めは ROUND_HALF_EVEN で 4 桁 (Decimal(6,4) と揃える)', () => {
     // sold=1, total=8 → 0.125 ちょうど。ROUND_HALF_EVEN なら 0.1250 (5 桁目以降が無いので影響なし)。
     // sold=3, total=8 → 0.375 → 0.3750
     const r3 = aggregateOccupancy(
       [
-        { nights: 1, checkInDate: date('2026-04-01') },
-        { nights: 1, checkInDate: date('2026-04-02') },
-        { nights: 1, checkInDate: date('2026-04-03') },
+        { nights: 1, roomCount: 1, checkInDate: date('2026-04-01') },
+        { nights: 1, roomCount: 1, checkInDate: date('2026-04-02') },
+        { nights: 1, roomCount: 1, checkInDate: date('2026-04-03') },
       ],
       // 4 月は 30 日。inventory を意図的に 0 に近づけても整数指定なので、
       // total=240 にしたいなら inventory=8。 sold=3 / 240 = 0.0125 → 0.0125
@@ -98,20 +108,21 @@ describe('aggregateOccupancy', () => {
   });
 
   it('期間外の月は 0 件として返る', () => {
-    const result = aggregateOccupancy([{ nights: 1, checkInDate: date('2026-05-15') }], 10, [
-      '2026-04',
-      '2026-05',
-      '2026-06',
-    ]);
+    const result = aggregateOccupancy(
+      [{ nights: 1, roomCount: 1, checkInDate: date('2026-05-15') }],
+      10,
+      ['2026-04', '2026-05', '2026-06'],
+    );
     expect(result.map((r) => r.soldRoomNights)).toEqual([0, 1, 0]);
   });
 
-  it('nights<=0 のレコードは除外する (データ不正の防御)', () => {
+  it('nights<=0 / roomCount<=0 のレコードは除外する (データ不正の防御)', () => {
     const result = aggregateOccupancy(
       [
-        { nights: 0, checkInDate: date('2026-05-01') },
-        { nights: -1, checkInDate: date('2026-05-02') },
-        { nights: 2, checkInDate: date('2026-05-03') },
+        { nights: 0, roomCount: 1, checkInDate: date('2026-05-01') },
+        { nights: -1, roomCount: 1, checkInDate: date('2026-05-02') },
+        { nights: 1, roomCount: 0, checkInDate: date('2026-05-03') },
+        { nights: 2, roomCount: 1, checkInDate: date('2026-05-04') },
       ],
       10,
       ['2026-05'],
@@ -120,9 +131,11 @@ describe('aggregateOccupancy', () => {
   });
 
   it('inventory が 0 でも totalRoomNights は 0、rate は 0 で返る (ゼロ除算防御)', () => {
-    const result = aggregateOccupancy([{ nights: 1, checkInDate: date('2026-05-01') }], 0, [
-      '2026-05',
-    ]);
+    const result = aggregateOccupancy(
+      [{ nights: 1, roomCount: 1, checkInDate: date('2026-05-01') }],
+      0,
+      ['2026-05'],
+    );
     expect(result[0]!.totalRoomNights).toBe(0);
     expect(result[0]!.occupancyRate).toBe('0.0000');
   });
@@ -137,12 +150,12 @@ describe('aggregateAdr', () => {
   });
 
   it('連泊込みで totalRevenue / soldRoomNights を月集計する', () => {
-    // 5 月: totalAmount=20000 (1泊) + 60000 (3泊) = 80000、nights=4 → ADR=20000.00
-    // 6 月: totalAmount=30000 (2泊)、nights=2 → ADR=15000.00
+    // 5 月: totalAmount=20000 (1泊) + 60000 (3泊) = 80000、soldRoomNights=4 → ADR=20000.00
+    // 6 月: totalAmount=30000 (2泊)、soldRoomNights=2 → ADR=15000.00
     const reservations = [
-      { nights: 1, totalAmount: new Decimal('20000'), checkInDate: date('2026-05-01') },
-      { nights: 3, totalAmount: new Decimal('60000'), checkInDate: date('2026-05-31') },
-      { nights: 2, totalAmount: new Decimal('30000'), checkInDate: date('2026-06-15') },
+      { nights: 1, roomCount: 1, totalAmount: new Decimal('20000'), checkInDate: date('2026-05-01') },
+      { nights: 3, roomCount: 1, totalAmount: new Decimal('60000'), checkInDate: date('2026-05-31') },
+      { nights: 2, roomCount: 1, totalAmount: new Decimal('30000'), checkInDate: date('2026-06-15') },
     ];
     const result = aggregateAdr(reservations, ['2026-05', '2026-06']);
 
@@ -157,10 +170,20 @@ describe('aggregateAdr', () => {
     expect(june.adr).toBe('15000.00');
   });
 
-  it('丸めは ROUND_HALF_EVEN で 2 桁 (basePrice と揃える)', () => {
-    // total=10001, nights=3 → 3333.6666... → ROUND_HALF_EVEN で 3333.67
+  it('roomCount > 1 の予約は分母 (sold) に nights × roomCount で反映する (issue #59)', () => {
+    // 1 泊 × 2 室、totalAmount=40000 → soldRoomNights=2、ADR=20000.00
     const result = aggregateAdr(
-      [{ nights: 3, totalAmount: new Decimal('10001'), checkInDate: date('2026-05-01') }],
+      [{ nights: 1, roomCount: 2, totalAmount: new Decimal('40000'), checkInDate: date('2026-05-01') }],
+      ['2026-05'],
+    );
+    expect(result[0]!.soldRoomNights).toBe(2);
+    expect(result[0]!.adr).toBe('20000.00');
+  });
+
+  it('丸めは ROUND_HALF_EVEN で 2 桁 (basePrice と揃える)', () => {
+    // total=10001, sold=3 → 3333.6666... → ROUND_HALF_EVEN で 3333.67
+    const result = aggregateAdr(
+      [{ nights: 3, roomCount: 1, totalAmount: new Decimal('10001'), checkInDate: date('2026-05-01') }],
       ['2026-05'],
     );
     expect(result[0]!.adr).toBe('3333.67');
@@ -168,19 +191,20 @@ describe('aggregateAdr', () => {
   });
 
   it('銀行家丸め (HALF_EVEN): 12345.005 → 12345.00 (偶数寄せ)', () => {
-    // total=24690.01, nights=2 → 12345.005 → ROUND_HALF_EVEN で 12345.00
+    // total=24690.01, sold=2 → 12345.005 → ROUND_HALF_EVEN で 12345.00
     const result = aggregateAdr(
-      [{ nights: 2, totalAmount: new Decimal('24690.01'), checkInDate: date('2026-05-01') }],
+      [{ nights: 2, roomCount: 1, totalAmount: new Decimal('24690.01'), checkInDate: date('2026-05-01') }],
       ['2026-05'],
     );
     expect(result[0]!.adr).toBe('12345.00');
   });
 
-  it('nights=0 のレコードは ADR の分母に入れない (revenue にも含めない)', () => {
+  it('nights=0 / roomCount=0 のレコードは ADR の分母に入れない (revenue にも含めない)', () => {
     const result = aggregateAdr(
       [
-        { nights: 0, totalAmount: new Decimal('99999'), checkInDate: date('2026-05-01') },
-        { nights: 1, totalAmount: new Decimal('15000'), checkInDate: date('2026-05-02') },
+        { nights: 0, roomCount: 1, totalAmount: new Decimal('99999'), checkInDate: date('2026-05-01') },
+        { nights: 1, roomCount: 0, totalAmount: new Decimal('88888'), checkInDate: date('2026-05-02') },
+        { nights: 1, roomCount: 1, totalAmount: new Decimal('15000'), checkInDate: date('2026-05-03') },
       ],
       ['2026-05'],
     );

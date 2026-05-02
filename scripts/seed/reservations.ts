@@ -74,6 +74,7 @@ async function upsertReservation(
     checkInDate: row.checkInDate,
     checkOutDate: row.checkOutDate,
     nights: row.nights,
+    roomCount: row.roomCount,
     bookingChannel: row.bookingChannel,
     roomTypeId,
     planId,
