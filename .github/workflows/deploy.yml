@@ -1,0 +1,208 @@
+# 本番デプロイワークフロー (ADR-0005)
+# - main への push で起動
+# - Workload Identity Federation で GCP に認証 (SA キーは保管しない)
+# - Cloud SQL Auth Proxy 経由で `prisma migrate deploy`
+# - api / web の Docker image を Artifact Registry に push し Cloud Run を更新
+# - 失敗時の自動ロールバックなし (MVP / ADR-0005)
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# WIF (OIDC) で GCP に認証するために id-token: write が必要
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GCP_REGION: asia-northeast1
+  ARTIFACT_REPO: dynamic-price
+  API_SERVICE: api
+  WEB_SERVICE: web
+
+jobs:
+  deploy:
+    name: Deploy api / web to Cloud Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/db/prisma/schema.prisma
+
+      # CI と同等の検証 (main へ直接 push されたケースに備える二重防御)
+      - name: Lint (workspaces)
+        run: npm run lint --workspaces --if-present
+
+      - name: Typecheck (workspaces)
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Build (workspaces)
+        run: npm run build --workspaces --if-present
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # --- DB migration -----------------------------------------------------
+      # Cloud SQL Auth Proxy v2 を runner に置いて、TCP 5432 にバインド。
+      # `prisma migrate deploy` は失敗するとデプロイ全体を中断 (ADR-0005)。
+      - name: Download Cloud SQL Auth Proxy
+        run: |
+          curl -fsSL -o cloud-sql-proxy \
+            https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.13.0/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+
+      - name: Start Cloud SQL Auth Proxy
+        run: |
+          ./cloud-sql-proxy "${{ secrets.CLOUD_SQL_INSTANCE }}" \
+            --port 5432 \
+            --auto-iam-authn=false \
+            > proxy.log 2>&1 &
+          echo "PROXY_PID=$!" >> "$GITHUB_ENV"
+          # listening 確認
+          for i in $(seq 1 30); do
+            if ss -ltn | grep -q ':5432 '; then
+              echo "proxy is listening"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "proxy did not start in time" >&2
+          cat proxy.log >&2
+          exit 1
+
+      # migrate 用の DATABASE_URL は Secret Manager 側に "database-url-migrate" として保管。
+      # (Cloud Run ランタイム用 "database-url" は Unix socket 接続なので proxy では使えない)
+      - name: Fetch migrate DATABASE_URL from Secret Manager
+        id: db-url
+        run: |
+          URL=$(gcloud secrets versions access latest --secret=database-url-migrate)
+          echo "::add-mask::$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Run Prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.url }}
+        run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
+
+      - name: Stop Cloud SQL Auth Proxy
+        if: always() && env.PROXY_PID != ''
+        run: kill "$PROXY_PID" || true
+
+      # --- Build & push images ---------------------------------------------
+      - name: Set image tags
+        id: tags
+        run: |
+          REGISTRY="${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}"
+          echo "api_image=${REGISTRY}/${{ env.API_SERVICE }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "web_image=${REGISTRY}/${{ env.WEB_SERVICE }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push api image
+        run: |
+          docker build \
+            -f apps/api/Dockerfile \
+            -t "${{ steps.tags.outputs.api_image }}" \
+            .
+          docker push "${{ steps.tags.outputs.api_image }}"
+
+      - name: Build & push web image
+        run: |
+          docker build \
+            -f apps/web/Dockerfile \
+            -t "${{ steps.tags.outputs.web_image }}" \
+            .
+          docker push "${{ steps.tags.outputs.web_image }}"
+
+      # --- Cloud Run deploy -------------------------------------------------
+      # --add-cloudsql-instances / --set-secrets / --set-env-vars を毎回渡す。
+      # gcloud run deploy は冪等なのでサービス新規作成・更新どちらも同じコマンドで動く。
+      # これにより初回デプロイもローカル手動作業なしに CI/CD だけで完結する。
+      - name: Deploy api to Cloud Run
+        id: deploy-api
+        run: |
+          gcloud run deploy "${{ env.API_SERVICE }}" \
+            --image "${{ steps.tags.outputs.api_image }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances "${{ secrets.CLOUD_SQL_INSTANCE }}" \
+            --set-env-vars "NODE_ENV=production" \
+            --set-secrets "DATABASE_URL=database-url:latest,AUTH_SECRET=auth-secret:latest" \
+            --quiet
+          API_URL=$(gcloud run services describe "${{ env.API_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          echo "url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web to Cloud Run
+        run: |
+          gcloud run deploy "${{ env.WEB_SERVICE }}" \
+            --image "${{ steps.tags.outputs.web_image }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "NODE_ENV=production,API_BASE_URL=${{ steps.deploy-api.outputs.url }}" \
+            --set-secrets "AUTH_SECRET=auth-secret:latest,GOOGLE_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_CLIENT_SECRET=google-oauth-client-secret:latest" \
+            --quiet
+          WEB_URL=$(gcloud run services describe "${{ env.WEB_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          # AUTH_URL はサービス自身の URL。初回・更新どちらも毎回セットする。
+          gcloud run services update "${{ env.WEB_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --update-env-vars "AUTH_URL=${WEB_URL}" \
+            --quiet
+
+      # --- Healthcheck ------------------------------------------------------
+      - name: Healthcheck api /healthz
+        run: |
+          API_URL=$(gcloud run services describe "${{ env.API_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${API_URL}/healthz" || echo 000)
+            echo "attempt ${i}: ${code}"
+            if [ "${code}" = "200" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "api /healthz did not return 200" >&2
+          exit 1
+
+      - name: Healthcheck web /
+        run: |
+          WEB_URL=$(gcloud run services describe "${{ env.WEB_SERVICE }}" \
+            --region "${{ env.GCP_REGION }}" --format='value(status.url)')
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${WEB_URL}" || echo 000)
+            echo "attempt ${i}: ${code}"
+            # 認証ページへのリダイレクト 200/302/307 を成功扱い (Auth.js)
+            case "${code}" in
+              200|302|303|307|308) exit 0 ;;
+            esac
+            sleep 5
+          done
+          echo "web / did not return success" >&2
+          exit 1

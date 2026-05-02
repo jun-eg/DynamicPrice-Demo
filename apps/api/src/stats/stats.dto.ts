@@ -5,10 +5,6 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { isYearMonth, parseYearMonth } from '@app/shared';
 import type { YearMonth } from '@app/shared';
 
-// 02-pricing-model.md の係数推定窓 (24 ヶ月) を上限の目安にする。
-// /recommendations の MAX_RANGE_DAYS と同じく「画面で扱う期間 + 多少の余裕」を持たせる。
-export const MAX_RANGE_MONTHS = 24;
-
 export interface ParsedStatsRangeQuery {
   from: YearMonth;
   to: YearMonth;
@@ -19,19 +15,18 @@ export interface RawStatsRangeQuery {
   to?: unknown;
 }
 
+export const MAX_RANGE_MONTHS = 24;
+
 export function parseStatsRangeQuery(raw: RawStatsRangeQuery): ParsedStatsRangeQuery {
   const from = parseYearMonthQuery(raw.from, 'from');
   const to = parseYearMonthQuery(raw.to, 'to');
 
-  const fromIdx = monthIndex(from);
-  const toIdx = monthIndex(to);
-  if (fromIdx > toIdx) {
+  if (monthIndex(from) > monthIndex(to)) {
     throw validationError('from must be <= to');
   }
 
-  const months = toIdx - fromIdx + 1;
-  if (months > MAX_RANGE_MONTHS) {
-    throw validationError(`Range must be <= ${MAX_RANGE_MONTHS} months (got ${months})`);
+  if (monthIndex(to) - monthIndex(from) >= MAX_RANGE_MONTHS) {
+    throw validationError(`Range must be <= ${MAX_RANGE_MONTHS} months`);
   }
 
   return { from, to };

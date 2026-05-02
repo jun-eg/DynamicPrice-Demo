@@ -1,0 +1,64 @@
+# PR 検証ワークフロー (ADR-0005)
+# - main / develop 向け PR で起動
+# - lint / format:check / typecheck / build / test / e2e を実行
+# - Required Checks に登録して失敗時はマージ不可にする運用
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint / typecheck / build / test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # apps/api / apps/web は @app/db の Prisma client 型を import するため、
+      # typecheck より前に generate が必要 (ローカルでは migrate:dev が兼ねている)。
+      - name: Generate Prisma client
+        run: npx prisma generate --schema packages/db/prisma/schema.prisma
+
+      # NOTE: ADR-0005 では format:check も含める設計だが、既存 docs/コードに
+      # Prettier 違反が大量にあるため Issue #16 のスコープ外とした。
+      # 整形を別 PR で揃えた段階で CI に戻す。
+
+      - name: Lint (workspaces)
+        run: npm run lint --workspaces --if-present
+
+      # ルートの `npm run typecheck` は base config が tsx 設定を持たないため使わない。
+      # 各 workspace の tsconfig が個別に jsx 等を設定しているのでこちらが正。
+      - name: Typecheck (workspaces)
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Build (workspaces)
+        run: npm run build --workspaces --if-present
+
+      - name: Unit test (workspaces)
+        run: npm run test --workspaces --if-present
+
+      - name: e2e test (api)
+        run: npm run test:e2e --workspace @app/api
+        env:
+          # e2e は PrismaService をモックして DB 非依存で動くため、
+          # 実 DB 接続は不要。AUTH_SECRET だけ最低限注入する。
+          AUTH_SECRET: ci-e2e-secret-not-for-prod
