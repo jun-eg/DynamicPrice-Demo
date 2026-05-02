@@ -56,6 +56,19 @@
 - 失敗時はデプロイを中断、Cloud Run のサービスは更新しない(古いイメージのまま稼働継続)
 - 試験運用なので **migration の自動 rollback は持たない**(必要なら手動で reset)
 
+### マスターデータ・初期 ADMIN の seed をデプロイ時に実行
+
+- `npm run db:seed-master` を `prisma migrate deploy` の直後 (Cloud SQL Auth Proxy が立っている間) に実行する
+- 投入対象: `RoomType` / `Plan` / `BasePrice` (アプリの動作に必須のリファレンスデータ) と初期 `ADMIN` ユーザー 1 件
+- **冪等性**:
+  - master データは unique key での upsert
+  - admin は `update: {}` の upsert (既存ユーザーが居れば触らない)。理由: 運用で role/status を変えても毎デプロイで巻き戻されるのを防ぐため
+- 必要な GitHub Secret: `SEED_ADMIN_EMAIL` (初期 ADMIN のメール)
+- **なぜデプロイ時に流すか**:
+  - 招待制 (ADR-0003) のため、招待を発行できる ADMIN が DB に居ないとログイン可能なユーザーが 0 になる
+  - 初回デプロイ後に手動で SQL を叩く運用は再現性が低くミスを誘発する
+  - master データ (RoomType 等) もアプリ動作に必須なので、コード変更とデータ整備を同じパイプラインで保証したい
+
 ### Cloud Run サービスの更新方法
 
 - `gcloud run deploy <service> --image <ARTIFACT_URL>` で新リビジョンを作成、トラフィックを 100% 切り替え

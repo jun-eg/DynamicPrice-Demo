@@ -111,6 +111,15 @@ jobs:
           DATABASE_URL: ${{ steps.db-url.outputs.url }}
         run: npx prisma migrate deploy --schema packages/db/prisma/schema.prisma
 
+      # マスターデータ (RoomType / Plan / BasePrice) と初期 ADMIN を投入。
+      # 冪等(upsert) かつ admin は update={} で既存値を保護するので、毎デプロイで流して安全。
+      # SEED_ADMIN_EMAIL が無いと初回デプロイ後にログイン可能なユーザーが 0 になるので必須。
+      - name: Run master data seed
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.url }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+        run: npm run db:seed-master
+
       - name: Stop Cloud SQL Auth Proxy
         if: always() && env.PROXY_PID != ''
         run: kill "$PROXY_PID" || true
