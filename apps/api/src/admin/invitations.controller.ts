@@ -1,9 +1,10 @@
-// POST /admin/invitations (Issue #13 / 04-api-contract.md §/admin/invitations)
+// POST /admin/invitations + GET /admin/invitations (Issue #13 / 04-api-contract.md §/admin/invitations)
 // ADMIN ロール限定。InvitationsService にバリデーション済みの値を委譲する。
 
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -11,7 +12,10 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import type { AdminInvitationCreateResponse } from '@app/shared';
+import type {
+  AdminInvitationCreateResponse,
+  AdminPendingInvitationsListResponse,
+} from '@app/shared';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import {
   parseInvitationCreateBody,
@@ -22,6 +26,22 @@ import { InvitationsService } from './invitations.service.js';
 @Controller('admin/invitations')
 export class InvitationsController {
   constructor(private readonly service: InvitationsService) {}
+
+  @Roles('ADMIN')
+  @Get()
+  async listPending(): Promise<AdminPendingInvitationsListResponse> {
+    const items = await this.service.listPending();
+    return {
+      items: items.map((i) => ({
+        id: i.id,
+        email: i.email,
+        role: i.role,
+        invitedByEmail: i.invitedByEmail,
+        expiresAt: i.expiresAt.toISOString(),
+        createdAt: i.createdAt.toISOString(),
+      })),
+    };
+  }
 
   @Roles('ADMIN')
   @HttpCode(HttpStatus.CREATED)

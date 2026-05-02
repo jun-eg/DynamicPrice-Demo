@@ -4,6 +4,7 @@ import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { CoefficientsResponse } from '@app/shared';
 import CoefficientsCharts from './_components/CoefficientsCharts';
 import CoefficientsEditor from './_components/CoefficientsEditor';
+import RecomputeButton from './_components/RecomputeButton';
 
 export default async function CoefficientsPage() {
   const session = await auth();
@@ -36,6 +37,7 @@ export default async function CoefficientsPage() {
         </p>
       ) : data ? (
         <>
+          {session.user.role === 'ADMIN' && <RecomputeButton />}
           <CoefficientsCharts
             items={data.items}
             computedAt={data.computedAt}

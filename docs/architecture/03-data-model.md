@@ -97,7 +97,7 @@
 
 ### `BasePrice` — 基準価格
 
-`RoomType × Plan` の組合せに対する基準価格。試作段階では seed しない (ADR-0011)。担当者ヒアリングで実 RoomType × 実 Plan の価格レンジが確定したら別タスクで投入する。MVPでは編集UIなし、変更は DB 直接。
+`RoomType × Plan` の組合せに対する基準価格。試作段階では seed しない (ADR-0011)。担当者ヒアリングで実 RoomType × 実 Plan の価格レンジが確定したら ADMIN が `/admin/base-prices` から投入・編集する (`04-api-contract.md §/admin/base-prices`)。試作段階では `(roomTypeId, planId)` ごとに「最新の `effectiveFrom` 行 1 件」だけを保持し、履歴は残さない。
 
 | カラム          | 型       | 備考                                                         |
 | --------------- | -------- | ------------------------------------------------------------ |

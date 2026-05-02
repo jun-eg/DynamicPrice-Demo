@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/admin/invite', label: '招待', adminOnly: true },
   { href: '/admin/users', label: 'ユーザー管理', adminOnly: true },
   { href: '/admin/room-types', label: '部屋タイプ', adminOnly: true },
+  { href: '/admin/base-prices', label: '基準価格', adminOnly: true },
 ];
 
 export default function NavLinks({ role }: NavLinksProps) {
