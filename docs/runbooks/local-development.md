@@ -79,13 +79,15 @@ npm run migrate:dev --workspace @app/db
 
 ## 5. シード投入
 
-### 5-1. マスター(RoomType / Plan / BasePrice / ADMIN ユーザー)
+### 5-1. マスター(RoomType / 初期 ADMIN ユーザー)
 
 ```bash
 npm run db:seed-master
 ```
 
-- `BasePrice` の初期値はスクリプト内ハードコード(担当者ヒアリングで決めた値)
+- `RoomType` は CSV 由来の 6 件 (`master-data.ts` の `ROOM_TYPES`) を投入。`inventoryCount` は暫定値で、Web 管理画面 (`/admin/room-types`) から編集する (ADR-0009)
+- `Plan` / `BasePrice` は **seed しない** (ADR-0011)。実 `Plan` は §5-2 の CSV 取込で仮投入され、`BasePrice` は実マスタ確定後に別途整備する
+- 既存レコードは触らない (`update: {}`)。Web 編集の値を巻き戻さないため
 - `SEED_ADMIN_EMAIL` で指定したメアドを `ADMIN` ロールで作成
 
 ### 5-2. 元CSV(予約履歴)
