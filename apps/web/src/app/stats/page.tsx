@@ -10,15 +10,16 @@ import { Suspense } from 'react';
 import StatsCharts from './_components/StatsCharts';
 import StatsRangeFilter from './_components/StatsRangeFilter';
 
+// from のデフォルトは取込済み CSV 期間の起点 (2024-04) に固定し、
+// to は現在月とする。期間上限は撤廃済み (PR: 統計期間制限撤廃) のため
+// 24 ヶ月超になっても問題ない。
+const DEFAULT_FROM = '2024-04';
+
 function defaultRange(): { from: string; to: string } {
   const now = new Date();
   const y = now.getFullYear();
-  const m = now.getMonth();
-  const fromDate = new Date(y, m - 5, 1);
-  const fromY = fromDate.getFullYear();
-  const fromM = String(fromDate.getMonth() + 1).padStart(2, '0');
-  const toM = String(m + 1).padStart(2, '0');
-  return { from: `${fromY}-${fromM}`, to: `${y}-${toM}` };
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return { from: DEFAULT_FROM, to: `${y}-${m}` };
 }
 
 interface PageProps {
