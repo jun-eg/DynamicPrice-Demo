@@ -183,7 +183,7 @@ jobs:
           API_URL=$(gcloud run services describe "${{ env.API_SERVICE }}" \
             --region "${{ env.GCP_REGION }}" --format='value(status.url)')
           for i in $(seq 1 12); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${API_URL}/healthz" || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${API_URL}/healthz/" || echo 000)
             echo "attempt ${i}: ${code}"
             if [ "${code}" = "200" ]; then exit 0; fi
             sleep 5
