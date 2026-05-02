@@ -41,8 +41,10 @@ model RoomType {
 
 model Plan {
   id       Int     @id @default(autoincrement())
-  code     String  @unique
-  name     String
+  // 自然キーは「商品プラン名称」(issue #55, #56 / ADR-0010)。
+  // 元 CSV の「商品プランコード」は同一プランが複数コードに散る・同一コードに複数プランが同居する
+  // 二方向の問題があり自然キーに使えない。名称で集約することで Plan 行数を業務的な単位に揃える。
+  name     String  @unique
   mealType String?
 
   reservations Reservation[]
@@ -58,6 +60,8 @@ model Reservation {
   checkInDate     DateTime  @db.Date
   checkOutDate    DateTime  @db.Date
   nights          Int
+  // CSV「室数」列。1 行 = 1 室の暗黙前提を排除し、複数室予約を集計に正しく反映する (issue #59)。
+  roomCount       Int       @default(1)
   bookingChannel  String?
   roomTypeId      Int
   planId          Int

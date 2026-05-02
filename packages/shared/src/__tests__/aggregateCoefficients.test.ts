@@ -18,6 +18,7 @@ const date = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const baseInput = (override: Partial<CoefficientInput> = {}): CoefficientInput => ({
   totalAmount: new Decimal('20000'),
   nights: 1,
+  roomCount: 1,
   checkInDate: date('2026-05-01'),
   bookedDate: date('2026-04-29'),
   ...override,
@@ -115,14 +116,15 @@ describe('aggregateCoefficients', () => {
     expect(decCoef.value.toFixed(4)).toBe('0.5000');
   });
 
-  it('1泊単価は totalAmount / nights で計算される (連泊は単価で正規化)', () => {
-    // 連泊 2 泊 / totalAmount 60000 → 1 泊単価 30000。
-    // 単泊 / totalAmount 10000 → 1 泊単価 10000。
+  it('1泊単価は totalAmount / (nights × roomCount) で計算される (連泊・複数室を単価で正規化)', () => {
+    // 連泊 2 泊 × 1 室 / totalAmount 60000 → 1 泊単価 30000。
+    // 単泊 × 1 室 / totalAmount 10000 → 1 泊単価 10000。
     // それぞれ別の月に置いて、係数が単価ベースで動くことを確かめる。
     const expensive: CoefficientInput[] = Array.from({ length: 30 }, () =>
       baseInput({
         totalAmount: new Decimal('60000'),
         nights: 2,
+        roomCount: 1,
         checkInDate: date('2026-05-15'),
         bookedDate: date('2026-04-15'),
       }),
@@ -131,6 +133,7 @@ describe('aggregateCoefficients', () => {
       baseInput({
         totalAmount: new Decimal('10000'),
         nights: 1,
+        roomCount: 1,
         checkInDate: date('2026-12-15'),
         bookedDate: date('2026-11-15'),
       }),
@@ -138,6 +141,33 @@ describe('aggregateCoefficients', () => {
     const result = aggregateCoefficients([...expensive, ...cheap]);
 
     // 全期間平均 = (30000*30 + 10000*30) / 60 = 20000
+    const mayCoef = result.find((r) => r.type === 'SEASON' && r.key === '5')!;
+    expect(mayCoef.value.toFixed(4)).toBe('1.5000');
+  });
+
+  it('roomCount > 1 の予約は分母に nights × roomCount を使う (issue #59)', () => {
+    // 1 泊 × 2 室 / totalAmount 60000 → 1 泊単価 30000。
+    // 1 泊 × 1 室 / totalAmount 10000 → 1 泊単価 10000。
+    const multi: CoefficientInput[] = Array.from({ length: 30 }, () =>
+      baseInput({
+        totalAmount: new Decimal('60000'),
+        nights: 1,
+        roomCount: 2,
+        checkInDate: date('2026-05-15'),
+        bookedDate: date('2026-04-15'),
+      }),
+    );
+    const single: CoefficientInput[] = Array.from({ length: 30 }, () =>
+      baseInput({
+        totalAmount: new Decimal('10000'),
+        nights: 1,
+        roomCount: 1,
+        checkInDate: date('2026-12-15'),
+        bookedDate: date('2026-11-15'),
+      }),
+    );
+    const result = aggregateCoefficients([...multi, ...single]);
+    // 全期間平均 = (30000*30 + 10000*30) / 60 = 20000、5 月 = 30000/20000 = 1.5000
     const mayCoef = result.find((r) => r.type === 'SEASON' && r.key === '5')!;
     expect(mayCoef.value.toFixed(4)).toBe('1.5000');
   });
@@ -202,13 +232,20 @@ describe('aggregateCoefficients', () => {
     expect(may.sampleSize).toBe(5);
   });
 
-  it('nights<=0 の異常データは除外される', () => {
-    // 健全データ 30 件 (5 月) + 異常データ 1 件 (nights=0) → 5 月の sampleSize=30 のまま。
+  it('nights<=0 / roomCount<=0 の異常データは除外される', () => {
+    // 健全データ 30 件 (5 月) + 異常データ 2 件 → 5 月の sampleSize=30 のまま。
     const healthy: CoefficientInput[] = Array.from({ length: 30 }, () =>
       baseInput({ totalAmount: new Decimal('20000') }),
     );
-    const broken: CoefficientInput = baseInput({ nights: 0, totalAmount: new Decimal('99999') });
-    const result = aggregateCoefficients([...healthy, broken]);
+    const brokenNights: CoefficientInput = baseInput({
+      nights: 0,
+      totalAmount: new Decimal('99999'),
+    });
+    const brokenRoomCount: CoefficientInput = baseInput({
+      roomCount: 0,
+      totalAmount: new Decimal('99999'),
+    });
+    const result = aggregateCoefficients([...healthy, brokenNights, brokenRoomCount]);
     const may = result.find((r) => r.type === 'SEASON' && r.key === '5')!;
     expect(may.sampleSize).toBe(30);
     expect(may.fallback).toBe(false);

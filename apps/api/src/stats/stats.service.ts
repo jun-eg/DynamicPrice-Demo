@@ -26,11 +26,19 @@ export class StatsService {
   async occupancy(query: ParsedStatsRangeQuery): Promise<OccupancyAggregateItem[]> {
     const months = enumerateYearMonths(query.from, query.to);
     const [reservations, totalInventory] = await Promise.all([
-      this.findReservationsByCheckIn(query, { nights: true, checkInDate: true }),
+      this.findReservationsByCheckIn(query, {
+        nights: true,
+        roomCount: true,
+        checkInDate: true,
+      }),
       this.totalInventory(),
     ]);
     return aggregateOccupancy(
-      reservations.map((r) => ({ nights: r.nights, checkInDate: r.checkInDate })),
+      reservations.map((r) => ({
+        nights: r.nights,
+        roomCount: r.roomCount,
+        checkInDate: r.checkInDate,
+      })),
       totalInventory,
       months,
     );
@@ -40,12 +48,14 @@ export class StatsService {
     const months = enumerateYearMonths(query.from, query.to);
     const reservations = await this.findReservationsByCheckIn(query, {
       nights: true,
+      roomCount: true,
       totalAmount: true,
       checkInDate: true,
     });
     return aggregateAdr(
       reservations.map((r) => ({
         nights: r.nights,
+        roomCount: r.roomCount,
         totalAmount: new Decimal(r.totalAmount.toString()),
         checkInDate: r.checkInDate,
       })),
@@ -94,6 +104,7 @@ export class StatsService {
 // Decimal / Date は Prisma がそれぞれ Prisma.Decimal / Date で返す。
 interface ReservationSelect {
   nights?: true;
+  roomCount?: true;
   totalAmount?: true;
   checkInDate?: true;
   bookedDate?: true;
@@ -102,6 +113,7 @@ interface ReservationSelect {
 type ReservationRow<S extends ReservationSelect> = (S['nights'] extends true
   ? { nights: number }
   : Record<string, never>) &
+  (S['roomCount'] extends true ? { roomCount: number } : Record<string, never>) &
   (S['totalAmount'] extends true
     ? { totalAmount: { toString(): string } }
     : Record<string, never>) &

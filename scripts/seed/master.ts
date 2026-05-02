@@ -7,10 +7,13 @@ import { Prisma, prisma } from '@app/db';
 import { ROOM_TYPES, PLANS, BASE_PRICES } from './master-data';
 
 async function upsertRoomTypes(): Promise<void> {
+  // 既存レコードは触らない: Web 管理画面 (/admin/room-types) から ADMIN が
+  // inventoryCount を編集できるため、毎デプロイで巻き戻さない (issue #59)。
+  // 初回 seed の値が無いと稼働率の分母が 0 になるので create だけは保証する。
   for (const rt of ROOM_TYPES) {
     await prisma.roomType.upsert({
       where: { code: rt.code },
-      update: { name: rt.name, capacity: rt.capacity, inventoryCount: rt.inventoryCount },
+      update: {},
       create: {
         code: rt.code,
         name: rt.name,
@@ -19,24 +22,27 @@ async function upsertRoomTypes(): Promise<void> {
       },
     });
   }
-  console.log(`[master] RoomType upserted: ${ROOM_TYPES.length}`);
+  console.log(`[master] RoomType ensured: ${ROOM_TYPES.length}`);
 }
 
 async function upsertPlans(): Promise<void> {
+  // Plan の自然キーは name (issue #55, #56 / ADR-0010)。
+  // mealType は seed 投入時のみ反映。CSV 取り込み (reservations.ts) で初出時の値が
+  // 採用される運用を尊重するため、既存行は触らない。
   for (const plan of PLANS) {
     await prisma.plan.upsert({
-      where: { code: plan.code },
-      update: { name: plan.name, mealType: plan.mealType },
-      create: { code: plan.code, name: plan.name, mealType: plan.mealType },
+      where: { name: plan.name },
+      update: {},
+      create: { name: plan.name, mealType: plan.mealType },
     });
   }
-  console.log(`[master] Plan upserted: ${PLANS.length}`);
+  console.log(`[master] Plan ensured: ${PLANS.length}`);
 }
 
 async function upsertBasePrices(): Promise<void> {
   for (const bp of BASE_PRICES) {
     const roomType = await prisma.roomType.findUniqueOrThrow({ where: { code: bp.roomTypeCode } });
-    const plan = await prisma.plan.findUniqueOrThrow({ where: { code: bp.planCode } });
+    const plan = await prisma.plan.findUniqueOrThrow({ where: { name: bp.planName } });
     const effectiveFrom = new Date(`${bp.effectiveFrom}T00:00:00Z`);
     const effectiveTo = bp.effectiveTo ? new Date(`${bp.effectiveTo}T00:00:00Z`) : null;
 

@@ -50,6 +50,7 @@
 | `checkInDate`     | date       | チェックイン日                             |
 | `checkOutDate`    | date       | チェックアウト日                           |
 | `nights`          | int        | 泊数                                       |
+| `roomCount`       | int        | 室数(CSV「室数」列、デフォルト 1)。ADR-0009 |
 | `bookingChannel`  | string?    | 予約サイト名称(楽天 / じゃらん / 公式...) |
 | `roomTypeId`      | int (FK)   | → `RoomType`                               |
 | `planId`          | int (FK)   | → `Plan`                                   |
@@ -82,20 +83,21 @@
 | `code`            | string   | UNIQUE。元CSVの分類に対応                   |
 | `name`            | string   | 表示名                                      |
 | `capacity`        | int?     | 定員                                        |
-| `inventoryCount`  | int      | 部屋数。稼働率の分母に使う(`02-pricing-model.md`) |
+| `inventoryCount`  | int      | 部屋数。稼働率の分母に使う(`02-pricing-model.md`)。Web 管理画面 `/admin/room-types` から ADMIN が編集可、履歴管理なし(ADR-0009) |
 
 ### `Plan` — プラン・マスター
 
-| カラム      | 型       | 備考                                       |
-| ----------- | -------- | ------------------------------------------ |
-| `id`        | int (PK) | 自動採番                                   |
-| `code`      | string   | UNIQUE。元CSVの「商品プランコード」に対応  |
-| `name`      | string   | 表示名                                     |
-| `mealType`  | string?  | 一泊二食 / 朝食付き / 素泊まり 等(正規化) |
+| カラム      | 型       | 備考                                                                  |
+| ----------- | -------- | --------------------------------------------------------------------- |
+| `id`        | int (PK) | 自動採番                                                              |
+| `name`      | string   | UNIQUE。元CSVの「商品プラン名称」を自然キーに採用(ADR-0010)。表示名兼任 |
+| `mealType`  | string?  | `一泊二食` / `朝食付き` / `素泊まり` の正規化値、または null。CSV「食事」列を `csv-mapping.ts` の `normalizeMealType()` で接頭辞マッチして吸収する(issue #51) |
+
+元 CSV の「商品プランコード」は同 name 多コード / 同 code 多 name の双方向の不整合があり、自然キーに使えないため取り込まない(ADR-0010)。
 
 ### `BasePrice` — 基準価格
 
-`RoomType × Plan` の組合せに対する基準価格。Seed で投入し、変更は DB 直接(MVPでは編集UIなし)。
+`RoomType × Plan` の組合せに対する基準価格。試作段階では seed しない (ADR-0011)。担当者ヒアリングで実 RoomType × 実 Plan の価格レンジが確定したら別タスクで投入する。MVPでは編集UIなし、変更は DB 直接。
 
 | カラム          | 型       | 備考                                                         |
 | --------------- | -------- | ------------------------------------------------------------ |
@@ -191,7 +193,7 @@
 ## ER 観点の補足
 
 - **Reservation** と **RoomType / Plan** は外部キーで結ぶ。元CSVの「部屋タイプ名称」「商品プラン名称」は**自由文字列**なので、Seed 時に正規化テーブルへマッピングする。
-- 同じ「商品プランコード」が時期で異なる名称を持つ可能性がある。`Plan.code` を主キー扱いし、名称揺れは Seed で吸収する。
+- `Plan` は「商品プラン名称」を自然キーにする(ADR-0010)。元 CSV の「商品プランコード」は分裂・同居の双方向問題があり捨てる。
 - `Reservation.cancelDate` がある行は「キャンセル予約」。係数推定では原則除外。
 
 ## 物理設計上の注意
