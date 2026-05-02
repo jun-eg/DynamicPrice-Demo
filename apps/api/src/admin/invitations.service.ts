@@ -1,7 +1,6 @@
-// 招待発行サービス (Issue #13 / 04-api-contract.md §/admin/invitations / 03-data-model.md §Invitation)
-// - 同メアドの未消化・未失効な招待があれば 409 CONFLICT
-// - expiresAt = now + 7 days
-// - INSERT と AuditLog(USER_INVITE) を 1 トランザクションで書く
+// 招待発行・招待中一覧サービス (Issue #13 / 04-api-contract.md §/admin/invitations / 03-data-model.md §Invitation)
+// - create(): 同メアドの未消化・未失効な招待があれば 409 CONFLICT、expiresAt = now + 7 days、AuditLog(USER_INVITE)
+// - listPending(): usedAt IS NULL かつ expiresAt > now の Invitation を新しい順に返す
 
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import type { Role } from '@app/shared';
@@ -17,9 +16,41 @@ export interface CreatedInvitation {
   expiresAt: Date;
 }
 
+export interface PendingInvitationView {
+  id: number;
+  email: string;
+  role: Role;
+  invitedByEmail: string | null;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 @Injectable()
 export class InvitationsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listPending(now: Date = new Date()): Promise<PendingInvitationView[]> {
+    const rows = await this.prisma.invitation.findMany({
+      where: { usedAt: null, expiresAt: { gt: now } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        expiresAt: true,
+        createdAt: true,
+        invitedBy: { select: { email: true } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      role: r.role,
+      invitedByEmail: r.invitedBy?.email ?? null,
+      expiresAt: r.expiresAt,
+      createdAt: r.createdAt,
+    }));
+  }
 
   async create(
     actorId: number,
