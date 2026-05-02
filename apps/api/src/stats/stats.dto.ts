@@ -15,12 +15,18 @@ export interface RawStatsRangeQuery {
   to?: unknown;
 }
 
+export const MAX_RANGE_MONTHS = 24;
+
 export function parseStatsRangeQuery(raw: RawStatsRangeQuery): ParsedStatsRangeQuery {
   const from = parseYearMonthQuery(raw.from, 'from');
   const to = parseYearMonthQuery(raw.to, 'to');
 
   if (monthIndex(from) > monthIndex(to)) {
     throw validationError('from must be <= to');
+  }
+
+  if (monthIndex(to) - monthIndex(from) >= MAX_RANGE_MONTHS) {
+    throw validationError(`Range must be <= ${MAX_RANGE_MONTHS} months`);
   }
 
   return { from, to };
