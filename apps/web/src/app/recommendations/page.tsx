@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { RecommendationsResponse } from '@app/shared';
 import RecommendationsFilter from './_components/RecommendationsFilter';
 import RecommendationsMatrix from './_components/RecommendationsMatrix';
@@ -22,9 +23,7 @@ function defaultDateRange(): { dateFrom: string; dateTo: string } {
 
 export default async function RecommendationsPage({ searchParams }: PageProps) {
   const session = await auth();
-  if (!session?.user) {
-    return <p>セッションが切れました。再ログインしてください。</p>;
-  }
+  if (!session?.user) redirect('/signin');
 
   const params = await searchParams;
   const defaults = defaultDateRange();
@@ -48,7 +47,11 @@ export default async function RecommendationsPage({ searchParams }: PageProps) {
   try {
     data = await apiFetch<RecommendationsResponse>(`/recommendations?${qs}`, subject);
   } catch (e) {
-    errorMsg = e instanceof Error ? e.message : '取得に失敗しました';
+    if (e instanceof ApiClientError) {
+      errorMsg = e.message;
+    } else {
+      throw e;
+    }
   }
 
   return (

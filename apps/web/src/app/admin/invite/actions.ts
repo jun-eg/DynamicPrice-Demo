@@ -39,6 +39,6 @@ export async function inviteUser(
     if (e instanceof ApiClientError) {
       return { status: 'error', message: e.message };
     }
-    return { status: 'error', message: '招待の発行に失敗しました' };
+    throw e;
   }
 }
