@@ -111,6 +111,30 @@ function parseDecimalOptional(s: string | null): Prisma.Decimal | null {
   return new Prisma.Decimal(cleaned);
 }
 
+// CSV「食事」列を `Plan.mealType` の正規化値に変換する (issue #51)。
+// 正規化値: '一泊二食' / '朝食付き' / '素泊まり' / null。
+// docs/architecture/03-data-model.md は「正規化」と明記しているが、
+// CSV はフリーテキスト + フォーマットゆれが大きいため接頭辞マッチで吸収する。
+//
+// マッピング根拠 (issue #51 の CSV 値分布、合計 6,853 行):
+//   - 「1泊2食が客室料金に含まれています。」系     → '一泊二食'  (685 件)
+//   - 「朝食が客室料金に含まれています。〜」系     → '朝食付き'  (2,597 件、複数行を含む)
+//   - 「1泊朝食付」                                → '朝食付き'  (16 件)
+//   - 「食事別」                                   → '素泊まり'  (3 件、「食事は別オーダー」と解釈)
+//   - 「その他」「オプションでの指定」「食事」「空」 → null      (3,442 件)
+export function normalizeMealType(raw: string | null): string | null {
+  if (raw === null) return null;
+  // 改行・連続空白で複数文の値があるため、最初の論理行のみを判定対象にする。
+  const head = raw.replace(/\s+/g, ' ').trim();
+  if (head === '') return null;
+
+  if (head.startsWith('1泊2食')) return '一泊二食';
+  if (head.startsWith('朝食が') || head === '1泊朝食付') return '朝食付き';
+  if (head === '食事別') return '素泊まり';
+  // 「その他」「オプションでの指定」「食事」(ヘッダー誤検出) などはフリーテキスト扱いで null。
+  return null;
+}
+
 export function mapRow(row: Record<string, string>): MappedRow {
   const reservationCode = pickRequired(row, CSV_COLUMN.reservationCode);
   const bookedDate = parseDateRequired(
@@ -132,7 +156,7 @@ export function mapRow(row: Record<string, string>): MappedRow {
   const roomTypeCode = pickRequired(row, CSV_COLUMN.roomTypeCode);
   const roomTypeName = pickRequired(row, CSV_COLUMN.roomTypeName);
   const planName = pickRequired(row, CSV_COLUMN.planName);
-  const mealType = pickOptional(row, CSV_COLUMN.mealType);
+  const mealType = normalizeMealType(pickOptional(row, CSV_COLUMN.mealType));
   const adults = parseIntRequired(pickRequired(row, CSV_COLUMN.adults), CSV_COLUMN.adults);
   const children = parseIntOptional(pickOptional(row, CSV_COLUMN.children), 0);
   const infants = parseIntOptional(pickOptional(row, CSV_COLUMN.infants), 0);
