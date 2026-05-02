@@ -1,5 +1,6 @@
+import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type {
   StatsOccupancyResponse,
   StatsAdrResponse,
@@ -26,9 +27,7 @@ interface PageProps {
 
 export default async function StatsPage({ searchParams }: PageProps) {
   const session = await auth();
-  if (!session?.user) {
-    return <p>セッションが切れました。再ログインしてください。</p>;
-  }
+  if (!session?.user) redirect('/signin');
 
   const subject = {
     id: session.user.userId,
@@ -54,7 +53,11 @@ export default async function StatsPage({ searchParams }: PageProps) {
       apiFetch<StatsLeadTimeResponse>(`/stats/lead-time?${qs}`, subject),
     ]);
   } catch (e) {
-    errorMsg = e instanceof Error ? e.message : '取得に失敗しました';
+    if (e instanceof ApiClientError) {
+      errorMsg = e.message;
+    } else {
+      throw e;
+    }
   }
 
   return (

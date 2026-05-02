@@ -1,13 +1,12 @@
+import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { AdminUsersListResponse } from '@app/shared';
 import UsersTable from './_components/UsersTable';
 
 export default async function AdminUsersPage() {
   const session = await auth();
-  if (!session?.user) {
-    return <p>セッションが切れました。再ログインしてください。</p>;
-  }
+  if (!session?.user) redirect('/signin');
 
   const subject = {
     id: session.user.userId,
@@ -20,7 +19,11 @@ export default async function AdminUsersPage() {
   try {
     data = await apiFetch<AdminUsersListResponse>('/admin/users', subject);
   } catch (e) {
-    errorMsg = e instanceof Error ? e.message : '取得に失敗しました';
+    if (e instanceof ApiClientError) {
+      errorMsg = e.message;
+    } else {
+      throw e;
+    }
   }
 
   return (

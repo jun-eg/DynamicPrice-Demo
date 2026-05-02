@@ -1,14 +1,13 @@
+import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, ApiClientError } from '@/lib/api-client';
 import type { CoefficientsResponse } from '@app/shared';
 import CoefficientsCharts from './_components/CoefficientsCharts';
 import CoefficientsEditor from './_components/CoefficientsEditor';
 
 export default async function CoefficientsPage() {
   const session = await auth();
-  if (!session?.user) {
-    return <p>セッションが切れました。再ログインしてください。</p>;
-  }
+  if (!session?.user) redirect('/signin');
 
   const subject = {
     id: session.user.userId,
@@ -21,7 +20,11 @@ export default async function CoefficientsPage() {
   try {
     data = await apiFetch<CoefficientsResponse>('/coefficients', subject);
   } catch (e) {
-    errorMsg = e instanceof Error ? e.message : '取得に失敗しました';
+    if (e instanceof ApiClientError) {
+      errorMsg = e.message;
+    } else {
+      throw e;
+    }
   }
 
   return (

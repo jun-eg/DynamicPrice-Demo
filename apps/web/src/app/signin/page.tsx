@@ -1,5 +1,6 @@
 // サインインページ。Google でログインボタンと、拒否理由のメッセージ表示。
 // 拒否理由は signIn callback が `/signin?error=<reason>` でリダイレクトするのを受ける。
+// `?from=<path>` が付いている場合はログイン後にそのパスへ戻す (issue #44)。
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
@@ -12,14 +13,24 @@ const REJECTION_MESSAGE: Record<string, string> = {
 };
 
 interface SignInPageProps {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; from?: string }>;
+}
+
+// オープンリダイレクト対策: 同一オリジン内の絶対パスのみ許可する。
+function sanitizeFrom(from: string | undefined): string {
+  if (!from) return '/';
+  if (!from.startsWith('/')) return '/';
+  if (from.startsWith('//') || from.startsWith('/\\')) return '/';
+  return from;
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const session = await auth();
-  if (session?.user) redirect('/');
+  const { error, from } = await searchParams;
+  const safeFrom = sanitizeFrom(from);
 
-  const { error } = await searchParams;
+  if (session?.user) redirect(safeFrom);
+
   const message = error ? (REJECTION_MESSAGE[error] ?? 'ログインに失敗しました。') : null;
 
   return (
@@ -59,7 +70,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <form
             action={async () => {
               'use server';
-              await signIn('google', { redirectTo: '/' });
+              await signIn('google', { redirectTo: safeFrom });
             }}
           >
             <button
