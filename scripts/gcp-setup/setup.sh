@@ -57,7 +57,6 @@ step3_cloudsql() {
     --database-version=POSTGRES_15 \
     --tier=db-f1-micro \
     --region="${REGION}" \
-    --no-assign-ip \
     || echo "既に存在するためスキップ"
 
   gcloud sql databases create dynamic_price \
@@ -65,8 +64,13 @@ step3_cloudsql() {
     || echo "既に存在するためスキップ"
 
   echo ""
-  echo "アプリ用 DB ユーザーのパスワードを入力してください (非表示):"
-  read -r -s DB_PASSWORD
+  if [[ -n "${DB_PASS:-}" ]]; then
+    DB_PASSWORD="${DB_PASS}"
+    echo "DB_PASS を .env から使用します"
+  else
+    echo "アプリ用 DB ユーザーのパスワードを入力してください (非表示):"
+    read -r -s DB_PASSWORD
+  fi
   gcloud sql users create app \
     --instance="${SQL_INSTANCE_NAME}" \
     --password="${DB_PASSWORD}" \
@@ -189,10 +193,10 @@ step8_github_secrets() {
     return
   fi
 
-  gh secret set GCP_PROJECT_ID      --body "${PROJECT_ID}"
-  gh secret set WIF_PROVIDER        --body "projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL}/providers/${WIF_PROVIDER}"
-  gh secret set WIF_SERVICE_ACCOUNT --body "${DEPLOYER_EMAIL}"
-  gh secret set CLOUD_SQL_INSTANCE  --body "${SQL_INSTANCE_CONN}"
+  gh secret set GCP_PROJECT_ID      --body "${PROJECT_ID}"      -R "${GITHUB_OWNER}/${GITHUB_REPO}"
+  gh secret set WIF_PROVIDER        --body "projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${WIF_POOL}/providers/${WIF_PROVIDER}" -R "${GITHUB_OWNER}/${GITHUB_REPO}"
+  gh secret set WIF_SERVICE_ACCOUNT --body "${DEPLOYER_EMAIL}"  -R "${GITHUB_OWNER}/${GITHUB_REPO}"
+  gh secret set CLOUD_SQL_INSTANCE  --body "${SQL_INSTANCE_CONN}" -R "${GITHUB_OWNER}/${GITHUB_REPO}"
 
   echo "Done: GitHub Secrets 登録完了"
 }
